@@ -848,9 +848,11 @@
     applyLang(lg === 'en' || lg === 'pt' ? lg : (navigator.language || 'pt').toLowerCase().startsWith('pt') ? 'pt' : 'en', false);
     applyTheme(store.get('bx_theme') === 'light' ? 'light' : 'dark');
     const adminPage = /^\/administracao(?:\/|$)/.test(location.pathname) || location.pathname === '/verificacao.html';
+    let adminPreview = false;
     try {
       const access = await api('site/status');
-      if (!access.access_open && location.pathname !== '/acess' && !adminPage) {
+      adminPreview = !access.access_open && access.admin_bypass;
+      if (!access.access_open && !access.admin_bypass && location.pathname !== '/acess' && !adminPage) {
         go('/acess', true);
         return null;
       }
@@ -867,6 +869,17 @@
       state.me = user;
     } catch { state.me = null; }
     state.ready = true;
+    if (adminPreview) {
+      const banner = document.createElement('aside');
+      banner.setAttribute('role', 'status');
+      banner.style.cssText = 'position:fixed;z-index:1000;top:12px;left:50%;transform:translateX(-50%);display:flex;align-items:center;gap:12px;padding:9px 12px;border:1px solid var(--line);border-radius:12px;background:var(--bg);color:var(--fg);box-shadow:0 8px 30px #0005;font:500 13px Poppins,Arial,sans-serif;max-width:calc(100vw - 24px)';
+      banner.innerHTML = '<span>Acesso administrativo</span><button type="button" style="border:0;border-radius:8px;padding:7px 10px;background:var(--fg);color:var(--bg);font:600 12px Poppins,Arial,sans-serif;cursor:pointer">Voltar para /acess</button>';
+      banner.querySelector('button').addEventListener('click', async () => {
+        try { await api('admin/exit-site', { method: 'POST' }); location.replace('/acess'); }
+        catch { toast('Não foi possível encerrar o acesso. Saia da administração e tente novamente.'); }
+      });
+      document.body.appendChild(banner);
+    }
 
     if (auth === 'required' && !state.me) {
       go(`/login?next=${encodeURIComponent(location.pathname + location.search)}`, true);
