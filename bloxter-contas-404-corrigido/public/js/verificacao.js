@@ -138,6 +138,15 @@
       finally { accessToggle.disabled = false; }
     });
     loadAccess();
+    document.getElementById('admin-enter').addEventListener('click', async (e) => {
+      e.preventDefault();
+      try {
+        await api('admin/enter-site', 'POST');
+        location.assign('/home');
+      } catch {
+        toast('Não foi possível abrir a prévia do site. Entre novamente na administração.');
+      }
+    });
     let seq = 0;
     let t;
 
