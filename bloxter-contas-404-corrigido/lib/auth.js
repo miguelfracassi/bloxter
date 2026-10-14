@@ -45,6 +45,8 @@ function clearSession(res) {
 // ---------- sessão de admin (/verificacao) ----------
 const ADMIN_COOKIE = 'bx_admin';
 const ADMIN_AGE = 60 * 60 * 12; // 12 horas
+const PREVIEW_COOKIE = 'bx_admin_preview';
+const PREVIEW_AGE = 60 * 60; // 1 hora
 
 function adminPassword() {
   return String(process.env.ADMIN_PASSWORD || '2015');
@@ -66,7 +68,26 @@ function setAdmin(res) {
 }
 
 function clearAdmin(res) {
-  res.setHeader('Set-Cookie', `${ADMIN_COOKIE}=; ${cookieFlags()}Max-Age=0`);
+  res.setHeader('Set-Cookie', [
+    `${ADMIN_COOKIE}=; ${cookieFlags()}Max-Age=0`,
+    `${PREVIEW_COOKIE}=; ${cookieFlags()}Max-Age=0`,
+  ]);
 }
 
-module.exports = { getUserId, setSession, clearSession, adminPassword, isAdmin, setAdmin, clearAdmin };
+function setAdminPreview(res) {
+  const token = jwt.sign({ admin: true, preview: true }, secret(), { expiresIn: PREVIEW_AGE });
+  res.setHeader('Set-Cookie', `${PREVIEW_COOKIE}=${token}; ${cookieFlags()}Max-Age=${PREVIEW_AGE}`);
+}
+
+function isAdminPreview(req) {
+  const token = parseCookies(req)[PREVIEW_COOKIE];
+  if (!token) return false;
+  try {
+    const data = jwt.verify(token, secret());
+    return data.admin === true && data.preview === true && isAdmin(req);
+  } catch {
+    return false;
+  }
+}
+
+module.exports = { getUserId, setSession, clearSession, adminPassword, isAdmin, setAdmin, clearAdmin, setAdminPreview, isAdminPreview };
