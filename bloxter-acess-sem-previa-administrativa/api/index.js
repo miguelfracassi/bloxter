@@ -1,9 +1,9 @@
 // Se algum módulo falhar ao carregar, devolvemos o erro em JSON (em vez da página de erro da Vercel).
-let bcrypt, getSql, ensureSchema, getUserId, setSession, clearSession, adminPassword, isAdmin, setAdmin, clearAdmin, loadError;
+let bcrypt, getSql, ensureSchema, getUserId, setSession, clearSession, adminPassword, isAdmin, setAdmin, clearAdmin, setAdminPreview, clearAdminPreview, isAdminPreview, loadError;
 try {
   bcrypt = require('bcryptjs');
   ({ getSql, ensureSchema } = require('../lib/db'));
-  ({ getUserId, setSession, clearSession, adminPassword, isAdmin, setAdmin, clearAdmin } = require('../lib/auth'));
+  ({ getUserId, setSession, clearSession, adminPassword, isAdmin, setAdmin, clearAdmin, setAdminPreview, clearAdminPreview, isAdminPreview } = require('../lib/auth'));
 } catch (e) {
   loadError = e;
 }
@@ -161,7 +161,7 @@ module.exports = async (req, res) => {
 
     if (a === 'site' && b === 'status' && method === 'GET') {
       const [setting] = await sql`SELECT setting_value FROM site_settings WHERE setting_key = 'access_open'`;
-      return send({ access_open: setting ? setting.setting_value === 'true' : false, opening: '25/10 às 20:00' });
+      return send({ access_open: setting ? setting.setting_value === 'true' : false, admin_bypass: isAdminPreview(req), opening: '25/10 às 20:00' });
     }
 
     const mapPost = (r) => ({
@@ -196,6 +196,14 @@ module.exports = async (req, res) => {
         return send({ ok: true });
       }
       if (!isAdmin(req)) throw new HttpError(401, 'unauthorized');
+      if (b === 'enter-site' && method === 'POST') {
+        setAdminPreview(res);
+        return send({ ok: true });
+      }
+      if (b === 'exit-site' && method === 'POST') {
+        clearAdminPreview(res);
+        return send({ ok: true });
+      }
       if (b === 'me' && method === 'GET') return send({ ok: true });
 
       const adminUser = (r) => ({
@@ -257,7 +265,7 @@ module.exports = async (req, res) => {
     const [accessSetting] = await sql`SELECT setting_value FROM site_settings WHERE setting_key = 'access_open'`;
     const accessOpen = accessSetting ? accessSetting.setting_value === 'true' : false;
     const reserveAllowed = (a === 'auth' && b === 'register') || a === 'username-available';
-    if (!accessOpen && !reserveAllowed) throw new HttpError(423, 'site_closed');
+    if (!accessOpen && !isAdminPreview(req) && !reserveAllowed) throw new HttpError(423, 'site_closed');
 
     // ---------- AUTH ----------
     if (a === 'auth' && b === 'register' && method === 'POST') {
