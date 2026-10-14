@@ -39,6 +39,8 @@
         <h3>${t('settings.account')}</h3>
         <div class="setting-row"><div><span>${esc(t('settings.loggedAs', { email: me.email }))}</span></div>
           <button class="btn ghost sm" data-act="logout">${t('logout')}</button></div>
+        <h3>Assistente</h3>
+        <div class="setting-card"><div class="setting-card-copy"><b>Converse com a LIA</b><span>Ajuda com as ferramentas e configurações do Bloxter.</span></div><a class="btn ghost" href="/support">Abrir LIA</a></div>
       </section>
       <section data-settings-panel="my-info" role="tabpanel" hidden>
         <h3>Minhas Informações</h3>

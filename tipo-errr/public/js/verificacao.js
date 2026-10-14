@@ -83,7 +83,7 @@
   function panelView() {
     app.innerHTML = `
       <div class="top"><div><h1>Administração</h1><div class="sub" style="margin:0">Contas, verificação e abertura do site.</div></div>
-        <button class="btn ghost sm" id="out">Sair</button></div>
+        <div class="row"><a class="btn ghost sm" href="/gerenciador/anúncios.html">Gerenciar anúncios</a><button class="btn ghost sm" id="out">Sair</button></div></div>
       <div class="row" role="tablist" aria-label="Seções da administração" style="margin:0 0 14px">
         <button class="btn sm" type="button" role="tab" aria-selected="true" data-panel-tab="registrations">Cadastros</button>
         <button class="btn ghost sm" type="button" role="tab" aria-selected="false" data-panel-tab="access">Acesso ao site</button>

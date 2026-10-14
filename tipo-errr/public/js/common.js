@@ -702,7 +702,8 @@
   };
 
   function postHTML(p) {
-    return `<article class="post" data-post="${p.id}">
+    return `<article class="post ${p.sponsored ? 'post-sponsored' : ''}" data-post="${p.id}">
+      ${p.sponsored ? '<div class="sponsored-ribbon" aria-label="Publicação patrocinada"><span>Patrocinado</span></div>' : ''}
       <a href="${accountPath(p.user.username)}">${avatar(p.user)}</a>
       <div class="body">
         <div class="top">
@@ -734,7 +735,11 @@
       const sep = feed.endpoint.includes('?') ? '&' : '?';
       const data = await api(`${feed.endpoint}${feed.cursor ? `${sep}before=${feed.cursor}` : ''}`);
       if (reset) list.innerHTML = '';
-      if (reset && !data.posts.length) list.innerHTML = feed.emptyHTML;
+      if (reset) {
+        const promoted = data.promoted_posts || [];
+        if (!data.posts.length && !promoted.length) list.innerHTML = feed.emptyHTML;
+        else if (promoted.length) list.insertAdjacentHTML('beforeend', promoted.map(postHTML).join(''));
+      }
       list.insertAdjacentHTML('beforeend', data.posts.map(postHTML).join(''));
       if (data.posts.length) feed.cursor = data.posts[data.posts.length - 1].id;
       more.innerHTML = loadMoreBtn(data.more);

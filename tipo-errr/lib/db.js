@@ -33,6 +33,10 @@ async function createAll() {
     created_at TIMESTAMPTZ NOT NULL DEFAULT now()
   )`;
   await s`CREATE INDEX IF NOT EXISTS posts_user_idx ON posts (user_id, id DESC)`;
+  await s`CREATE TABLE IF NOT EXISTS promoted_posts (
+    post_id INTEGER PRIMARY KEY REFERENCES posts(id) ON DELETE CASCADE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+  )`;
   await s`CREATE TABLE IF NOT EXISTS stories (
     id SERIAL PRIMARY KEY,
     user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,

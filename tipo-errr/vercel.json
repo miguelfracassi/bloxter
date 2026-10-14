@@ -37,6 +37,18 @@
     {
       "source": "/acess",
       "destination": "/acess.html"
+    },
+    {
+      "source": "/gerenciador/anúncios.html",
+      "destination": "/gerenciador/anuncios.html"
+    },
+    {
+      "source": "/gerenciador/anuncios",
+      "destination": "/gerenciador/anuncios.html"
+    },
+    {
+      "source": "/support",
+      "destination": "/support.html"
     }
   ],
   "headers": [
