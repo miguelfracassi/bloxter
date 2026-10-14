@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="pt-BR" data-theme="dark">
+<head>
+  <meta charset="utf-8" />
+  <meta name="robots" content="noindex, nofollow" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Administração · Bloxter</title>
+  <link rel="icon" type="image/png" href="/icon.png" />
+  <meta name="theme-color" content="#000000" />
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/style.css" />
+  <script>
+    (function () {
+      try {
+        var th = localStorage.getItem('bx_theme');
+        if (th !== 'light' && th !== 'dark') th = 'dark';
+        document.documentElement.setAttribute('data-theme', th);
+      } catch (e) {}
+    })();
+  </script>
+  <style>
+    .vr { max-width: 720px; margin: 0 auto; padding: 24px 16px 60px; }
+    .vr h1 { font-size: 24px; margin-bottom: 4px; }
+    .vr .sub { color: var(--fg2); margin-bottom: 20px; font-size: 14px; }
+    .vr .box { border: 1px solid var(--line); background: var(--card); border-radius: 16px; padding: 18px; }
+    .vr input[type=text], .vr input[type=password], .vr input[type=number], .vr input[type=search] {
+      width: 100%; background: transparent; color: var(--fg); border: 1px solid var(--line); border-radius: 10px;
+      padding: 11px 12px; font: inherit; outline: none;
+    }
+    .vr input:focus { border-color: var(--fg2); }
+    .vr .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+    .vr .login { max-width: 360px; margin: 14vh auto 0; display: grid; gap: 12px; }
+    .vr .err { color: #f4212e; font-size: 14px; min-height: 18px; }
+    .vr .top { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-bottom: 14px; }
+    .vr .u { display: grid; gap: 12px; padding: 14px 0; border-bottom: 1px solid var(--line); }
+    .vr .u:last-child { border-bottom: 0; }
+    .vr .uh { display: flex; align-items: center; gap: 12px; }
+    .vr .uh .info { min-width: 0; flex: 1; }
+    .vr .uh b { display: block; overflow-wrap: anywhere; }
+    .vr .uh span.h { color: var(--fg2); font-size: 14px; }
+    .vr .chk { display: inline-flex; align-items: center; gap: 8px; cursor: pointer; user-select: none; padding: 8px 12px; border: 1px solid var(--line); border-radius: 10px; }
+    .vr .chk input { width: 18px; height: 18px; accent-color: #1d9bf0; }
+    .vr .num { width: 150px; }
+    .vr .count { color: var(--fg2); font-size: 13px; }
+    .vr .empty { text-align: center; color: var(--fg2); padding: 30px 0; }
+  </style>
+</head>
+<body>
+  <div class="vr" id="app"></div>
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  <script src="/js/verificacao.js"></script>
+</body>
+</html>

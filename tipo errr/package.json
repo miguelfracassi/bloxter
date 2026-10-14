@@ -1,0 +1,12 @@
+{
+  "name": "bloxter",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Bloxter - a rede social feita para quem vive o roleplay",
+  "engines": { "node": ">=18" },
+  "dependencies": {
+    "@neondatabase/serverless": "^1.0.0",
+    "bcryptjs": "^2.4.3",
+    "jsonwebtoken": "^9.0.2"
+  }
+}
