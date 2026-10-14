@@ -10,6 +10,7 @@
       <div class="setting-tabs" role="tablist" aria-label="Abas das configurações">
         <button class="btn sm" type="button" role="tab" aria-selected="true" data-settings-tab="profile">${t('settings.profile')}</button>
         <button class="btn ghost sm" type="button" role="tab" aria-selected="false" data-settings-tab="my-info">Minhas Informações</button>
+        <button class="btn ghost sm" type="button" role="tab" aria-selected="false" data-settings-tab="accessibility">Acessibilidade</button>
       </div>
       <div class="settings">
       <section data-settings-panel="profile" role="tabpanel">
@@ -35,14 +36,6 @@
           <button class="btn" type="submit">${t('settings.save')}</button>
         </form>
 
-        <h3>Acessibilidade</h3>
-        <div class="setting-row"><div>${t('settings.language')}</div>${langToggle()}</div>
-        <div class="setting-row"><div>${t('settings.theme')}</div>
-          <div class="pill-toggle seg-theme">
-            <button data-act="themeset" data-val="dark" class="${state.theme === 'dark' ? 'on' : ''}">${t('settings.themeDark')}</button>
-            <button data-act="themeset" data-val="light" class="${state.theme === 'light' ? 'on' : ''}">${t('settings.themeLight')}</button>
-          </div></div>
-
         <h3>${t('settings.account')}</h3>
         <div class="setting-row"><div><span>${esc(t('settings.loggedAs', { email: me.email }))}</span></div>
           <button class="btn ghost sm" data-act="logout">${t('logout')}</button></div>
@@ -58,6 +51,21 @@
             <div><b>Roblox</b><span>${me.roblox_username ? `@${esc(me.roblox_username)}` : 'Não vinculado'}</span></div>
           </div>
           <button class="btn" type="button" id="settings-profile-details">Editar minhas informações</button>
+        </div>
+      </section>
+      <section data-settings-panel="accessibility" role="tabpanel" hidden>
+        <h3>Acessibilidade e aparência</h3>
+        <p class="hint settings-intro">Ajuste o idioma e a aparência do Bloxter. As mudanças são aplicadas imediatamente e ficam salvas neste dispositivo.</p>
+        <div class="setting-card">
+          <div class="setting-card-copy"><b>${t('settings.language')}</b><span>Escolha o idioma dos menus e textos do site.</span></div>
+          <div class="setting-control">${langToggle()}</div>
+        </div>
+        <div class="setting-card">
+          <div class="setting-card-copy"><b>${t('settings.theme')}</b><span>Escolha o modo que fica mais confortável para você.</span></div>
+          <div class="pill-toggle seg-theme setting-control">
+            <button type="button" data-act="themeset" data-val="dark" class="${state.theme === 'dark' ? 'on' : ''}">${t('settings.themeDark')}</button>
+            <button type="button" data-act="themeset" data-val="light" class="${state.theme === 'light' ? 'on' : ''}">${t('settings.themeLight')}</button>
+          </div>
         </div>
       </section>
       </div>`;

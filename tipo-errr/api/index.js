@@ -267,6 +267,76 @@ module.exports = async (req, res) => {
     const reserveAllowed = (a === 'auth' && b === 'register') || a === 'username-available';
     if (!accessOpen && !isAdminPreview(req) && !reserveAllowed) throw new HttpError(423, 'site_closed');
 
+    // ---------- STORIES (expiram em 24 horas) ----------
+    if (a === 'stories' && !b && method === 'GET') {
+      need();
+      const rows = await sql`
+        SELECT s.id, s.user_id, s.body, s.media, s.link, s.created_at, s.expires_at,
+          u.username, u.name, u.avatar_v, u.verified,
+          EXISTS (SELECT 1 FROM story_views sv WHERE sv.story_id = s.id AND sv.user_id = ${me}) AS viewed,
+          (SELECT count(*)::int FROM story_views sv WHERE sv.story_id = s.id) AS view_count
+        FROM stories s JOIN users u ON u.id = s.user_id
+        WHERE s.expires_at > now()
+          AND (s.user_id = ${me} OR s.user_id IN (SELECT followee_id FROM follows WHERE follower_id = ${me}))
+        ORDER BY s.user_id = ${me} DESC, s.created_at ASC`;
+      return send({ stories: rows.map((r) => ({
+        id: r.id, body: r.body, media: r.media, link: r.link, created_at: r.created_at, expires_at: r.expires_at,
+        viewed: !!r.viewed, view_count: Number(r.view_count),
+        user: { id: r.user_id, username: r.username, name: r.name, avatar: avatarUrl(r.user_id, r.avatar_v), verified: !!r.verified },
+      })) });
+    }
+
+    if (a === 'stories' && !b && method === 'POST') {
+      need();
+      const d = readBody(req);
+      const body = str(d.body, 300);
+      const media = typeof d.media === 'string' ? d.media : '';
+      if (media && (!/^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/.test(media) || media.length > 2200000)) {
+        throw new HttpError(400, 'invalid_story_media');
+      }
+      if (!body && !media) throw new HttpError(400, 'story_empty');
+      const link = normalizeLink(d.link || '');
+      const [story] = await sql`
+        INSERT INTO stories (user_id, body, media, link)
+        VALUES (${me}, ${body}, ${media}, ${link})
+        RETURNING id, body, media, link, created_at, expires_at`;
+      return send({ story }, 201);
+    }
+
+    if (a === 'stories' && b && c === 'views' && method === 'GET') {
+      need();
+      const id = Number.parseInt(b, 10);
+      if (!Number.isInteger(id)) throw new HttpError(404, 'not_found');
+      const [story] = await sql`SELECT user_id FROM stories WHERE id = ${id}`;
+      if (!story) throw new HttpError(404, 'not_found');
+      if (story.user_id !== me) throw new HttpError(403, 'forbidden');
+      const viewers = await sql`
+        SELECT u.id, u.username, u.name, u.avatar_v, v.created_at
+        FROM story_views v JOIN users u ON u.id = v.user_id
+        WHERE v.story_id = ${id} ORDER BY v.created_at DESC LIMIT 500`;
+      return send({ viewers: viewers.map((u) => ({ id: u.id, username: u.username, name: u.name, avatar: avatarUrl(u.id, u.avatar_v), viewed_at: u.created_at })) });
+    }
+
+    if (a === 'stories' && b && c === 'view' && method === 'POST') {
+      need();
+      const id = Number.parseInt(b, 10);
+      if (!Number.isInteger(id)) throw new HttpError(404, 'not_found');
+      const [story] = await sql`SELECT id, user_id FROM stories WHERE id = ${id} AND expires_at > now()`;
+      if (!story) throw new HttpError(404, 'not_found');
+      if (story.user_id !== me) await sql`INSERT INTO story_views (story_id, user_id) VALUES (${id}, ${me}) ON CONFLICT DO NOTHING`;
+      const [count] = await sql`SELECT count(*)::int AS n FROM story_views WHERE story_id = ${id}`;
+      return send({ view_count: Number(count.n) });
+    }
+
+    if (a === 'stories' && b && !c && method === 'DELETE') {
+      need();
+      const id = Number.parseInt(b, 10);
+      if (!Number.isInteger(id)) throw new HttpError(404, 'not_found');
+      const [deleted] = await sql`DELETE FROM stories WHERE id = ${id} AND user_id = ${me} RETURNING id`;
+      if (!deleted) throw new HttpError(404, 'not_found');
+      return send({ ok: true });
+    }
+
     // ---------- AUTH ----------
     if (a === 'auth' && b === 'register' && method === 'POST') {
       const d = readBody(req);
