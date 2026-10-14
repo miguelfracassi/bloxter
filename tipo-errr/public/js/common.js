@@ -543,7 +543,7 @@
     root.innerHTML = `
       <div class="pub">
         <header class="pub-head">
-          <a href="/" aria-label="Bloxter"><img class="logo-img" src="/logo.png" alt="Bloxter" /></a>
+          <a href="/" aria-label="Bloxter"><img class="symbol-img" src="/symbol.png" alt="Bloxter" /></a>
           <div class="pub-actions">
             ${toggles()}
             ${state.me ? '' : `<a class="btn ghost sm" href="/login">${t('login')}</a>`}
