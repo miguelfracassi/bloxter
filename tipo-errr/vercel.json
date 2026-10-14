@@ -49,6 +49,14 @@
     {
       "source": "/support",
       "destination": "/support.html"
+    },
+    {
+      "source": "/developers-services",
+      "destination": "/developers-services.html"
+    },
+    {
+      "source": "/maintenance",
+      "destination": "/maintenance.html"
     }
   ],
   "headers": [

@@ -161,8 +161,9 @@ module.exports = async (req, res) => {
     const send = (data, status = 200) => res.status(status).json(data);
 
     if (a === 'site' && b === 'status' && method === 'GET') {
-      const [setting] = await sql`SELECT setting_value FROM site_settings WHERE setting_key = 'access_open'`;
-      return send({ access_open: setting ? setting.setting_value === 'true' : false, admin_bypass: isAdminPreview(req), opening: '25/10 às 20:00' });
+      const settings = await sql`SELECT setting_key, setting_value FROM site_settings WHERE setting_key IN ('access_open','maintenance_enabled','maintenance_responsible','maintenance_reason','maintenance_updates')`;
+      const values = Object.fromEntries(settings.map((row) => [row.setting_key, row.setting_value]));
+      return send({ access_open: values.access_open === 'true', admin_bypass: isAdminPreview(req), opening: '25/10 às 20:00', maintenance: { enabled: values.maintenance_enabled === 'true', responsible: values.maintenance_responsible || 'Equipe Bloxter', reason: values.maintenance_reason || 'Atualizações', updates: values.maintenance_updates || '' } });
     }
 
     const mapPost = (r) => ({
@@ -207,6 +208,18 @@ module.exports = async (req, res) => {
         return send({ ok: true });
       }
       if (b === 'me' && method === 'GET') return send({ ok: true });
+      if (b === 'maintenance' && method === 'GET') {
+        const rows = await sql`SELECT setting_key, setting_value FROM site_settings WHERE setting_key LIKE 'maintenance_%'`;
+        const values = Object.fromEntries(rows.map((row) => [row.setting_key, row.setting_value]));
+        return send({ enabled: values.maintenance_enabled === 'true', responsible: values.maintenance_responsible || 'Equipe Bloxter', reason: values.maintenance_reason || 'Atualizações', updates: values.maintenance_updates || '' });
+      }
+      if (b === 'maintenance' && method === 'PATCH') {
+        const d = readBody(req);
+        if (typeof d.enabled !== 'boolean') throw new HttpError(400, 'invalid_setting');
+        const values = { maintenance_enabled: String(d.enabled), maintenance_responsible: str(d.responsible, 100) || 'Equipe Bloxter', maintenance_reason: str(d.reason, 240) || 'Atualizações', maintenance_updates: str(d.updates, 3000) };
+        for (const [key, value] of Object.entries(values)) await sql`INSERT INTO site_settings (setting_key, setting_value) VALUES (${key}, ${value}) ON CONFLICT (setting_key) DO UPDATE SET setting_value = EXCLUDED.setting_value`;
+        return send({ enabled: d.enabled, responsible: values.maintenance_responsible, reason: values.maintenance_reason, updates: values.maintenance_updates });
+      }
 
       const adminUser = (r) => ({
         id: r.id, username: r.username, name: r.name, email: r.email, created_at: r.created_at, avatar: avatarUrl(r.id, r.avatar_v),
@@ -290,6 +303,9 @@ module.exports = async (req, res) => {
       }
       throw new HttpError(404, 'not_found');
     }
+
+    const [maintenanceSetting] = await sql`SELECT setting_value FROM site_settings WHERE setting_key = 'maintenance_enabled'`;
+    if (maintenanceSetting && maintenanceSetting.setting_value === 'true' && !isAdminPreview(req)) throw new HttpError(503, 'maintenance');
 
     const [accessSetting] = await sql`SELECT setting_value FROM site_settings WHERE setting_key = 'access_open'`;
     const accessOpen = accessSetting ? accessSetting.setting_value === 'true' : false;
