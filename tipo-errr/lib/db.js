@@ -26,6 +26,14 @@ async function createAll() {
     avatar_v BIGINT NOT NULL DEFAULT 0,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now()
   )`;
+  await s`CREATE TABLE IF NOT EXISTS blog_articles (
+    id SERIAL PRIMARY KEY,
+    title TEXT NOT NULL,
+    content TEXT NOT NULL,
+    image_data TEXT NOT NULL DEFAULT '',
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+  )`;
+  await s`CREATE INDEX IF NOT EXISTS blog_articles_created_idx ON blog_articles (created_at DESC, id DESC)`;
   await s`CREATE TABLE IF NOT EXISTS posts (
     id SERIAL PRIMARY KEY,
     user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,

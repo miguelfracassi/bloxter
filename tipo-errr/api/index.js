@@ -433,6 +433,36 @@ module.exports = async (req, res) => {
       throw new HttpError(404, 'not_found');
     }
 
+    // ---------- BLOG PÚBLICO E PUBLICAÇÃO ADMINISTRATIVA ----------
+    if (a === 'blog') {
+      if (!b && method === 'GET') {
+        const articles = await sql`SELECT id, title, content, image_data, created_at FROM blog_articles ORDER BY created_at DESC, id DESC LIMIT 100`;
+        return send({ articles });
+      }
+      if (!b && method === 'POST') {
+        if (!isAdmin(req)) throw new HttpError(401, 'unauthorized');
+        const d = readBody(req);
+        const title = str(d.title, 140);
+        const content = str(d.content, 5000);
+        if (title.length < 3 || !content) throw new HttpError(400, 'article_required');
+        const image = typeof d.image_data === 'string' ? d.image_data : '';
+        if (image.length > 2100000 || (image && !/^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/]+={0,2}$/.test(image))) {
+          throw new HttpError(400, 'invalid_image');
+        }
+        const [article] = await sql`INSERT INTO blog_articles (title, content, image_data) VALUES (${title}, ${content}, ${image}) RETURNING id, title, content, image_data, created_at`;
+        return send({ article }, 201);
+      }
+      if (b && method === 'DELETE') {
+        if (!isAdmin(req)) throw new HttpError(401, 'unauthorized');
+        const id = Number.parseInt(b, 10);
+        if (!Number.isInteger(id) || id < 1) throw new HttpError(400, 'invalid_article');
+        const [deleted] = await sql`DELETE FROM blog_articles WHERE id = ${id} RETURNING id`;
+        if (!deleted) throw new HttpError(404, 'not_found');
+        return send({ ok: true });
+      }
+      throw new HttpError(404, 'not_found');
+    }
+
     const [maintenanceSetting] = await sql`SELECT setting_value FROM site_settings WHERE setting_key = 'maintenance_enabled'`;
     if (maintenanceSetting && maintenanceSetting.setting_value === 'true' && !isAdminPreview(req)) throw new HttpError(503, 'maintenance');
 
