@@ -23,6 +23,16 @@
     .pitch { max-width:520px; }
     .eyebrow { color:#bbb; text-transform:uppercase; letter-spacing:.24em; font-size:11px; }
     h1 { margin:13px 0 12px; font-size:clamp(38px,6vw,68px); letter-spacing:-.055em; line-height:1.05; }
+    h1 { margin:13px 0 12px; font-size:clamp(36px,5.2vw,60px); letter-spacing:-.055em; line-height:1.08; }
+    .pitch { max-width:600px; }
+    .phrase-glitch span { position:relative; display:block; min-height:2.2em; transition:opacity .12s ease; }
+    .phrase-glitch span::before,.phrase-glitch span::after { content:attr(data-text); position:absolute; inset:0; opacity:0; pointer-events:none; }
+    .phrase-glitch.is-glitching span::before { opacity:.75; color:#fff; clip-path:inset(0 0 54% 0); transform:translate(3px,-2px); animation:glitch-upper .42s steps(2,end) both; }
+    .phrase-glitch.is-glitching span::after { opacity:.65; color:#aaa; clip-path:inset(48% 0 0 0); transform:translate(-3px,2px); animation:glitch-lower .42s steps(2,end) both; }
+    @keyframes glitch-upper { 0%{clip-path:inset(0 0 90% 0);transform:translate(-4px,-1px)} 25%{clip-path:inset(18% 0 61% 0);transform:translate(5px,1px)} 50%{clip-path:inset(3% 0 78% 0);transform:translate(-2px,0)} 75%{clip-path:inset(27% 0 55% 0);transform:translate(3px,-1px)} 100%{clip-path:inset(0 0 54% 0);transform:translate(3px,-2px)} }
+    @keyframes glitch-lower { 0%{clip-path:inset(92% 0 0 0);transform:translate(4px,1px)} 30%{clip-path:inset(61% 0 16% 0);transform:translate(-5px,-1px)} 60%{clip-path:inset(76% 0 4% 0);transform:translate(2px,0)} 100%{clip-path:inset(48% 0 0 0);transform:translate(-3px,2px)} }
+    @media(prefers-reduced-motion:reduce){.phrase-glitch span::before,.phrase-glitch span::after{animation:none!important}.phrase-glitch.is-glitching span::before,.phrase-glitch.is-glitching span::after{opacity:0!important}}
+
     .pitch p { color:#ccc; max-width:440px; font-size:16px; }
     .opening { display:inline-flex; margin-top:16px; border-top:1px solid var(--line); padding-top:14px; font-weight:500; }
     .panel { border:1px solid var(--line); border-radius:22px; background:var(--card); backdrop-filter:blur(18px); padding:clamp(22px,4vw,34px); box-shadow:0 20px 90px #0008; }
@@ -54,7 +64,7 @@
     <header><a href="/acess" aria-label="Bloxter"><img src="/logo.png" alt="Bloxter" /></a><span class="badge">A inauguração está chegando</span></header>
     <main>
       <div class="layout">
-        <section class="pitch"><div class="eyebrow">Bloxter · comunidade de roleplay</div><h1>Seu lugar<br>começa aqui.</h1><p>Reserve seu nome de usuário agora e chegue com seu perfil pronto para a inauguração.</p><div class="opening">Estamos juntos com você · 25/10 às 20:00</div></section>
+        <section class="pitch"><div class="eyebrow">Bloxter · comunidade de roleplay</div><h1 class="phrase-glitch"><span id="pitch-phrase" data-text="Uma nova rede social do roleplay" aria-live="polite">Uma nova rede social do roleplay</span></h1><p>Reserve seu nome de usuário agora e chegue com seu perfil pronto para a inauguração.</p><div class="opening">Estamos juntos com você · 25/10 às 20:00</div></section>
         <section class="panel" aria-live="polite">
           <div class="step" id="step-account"><h2>Reserve seu nome de usuário</h2><p class="sub">Crie seu perfil para reservar seu nome. Não enviamos código nem fazemos verificação do e-mail.</p>
             <form id="account-form"><label for="name">Nome</label><input id="name" maxlength="50" autocomplete="name" required><label for="username">Nome de usuário</label><div class="prefix"><span>@</span><input id="username" maxlength="20" autocomplete="username" autocapitalize="none" spellcheck="false" required></div><div class="hint">3 a 20 caracteres: letras, números e _.</div><label for="email">E-mail</label><input id="email" type="email" autocomplete="email" maxlength="254" required placeholder="voce@exemplo.com"><label for="password">Senha</label><input id="password" type="password" minlength="8" maxlength="100" autocomplete="new-password" required><div class="hint">Mínimo de 8 caracteres. Ela aparecerá apenas no cartão que você baixar.</div><div class="error" id="account-error"></div><button class="btn" type="submit">Reservar meu nome</button></form>

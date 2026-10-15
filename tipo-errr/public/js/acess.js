@@ -1,5 +1,25 @@
 (() => {
   'use strict';
+  const pitch = document.querySelector('#pitch-phrase');
+  if (pitch && !window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    const phrases = [
+      'Uma nova rede social do roleplay',
+      'Feita para quem gosta de comentar e compartilhar suas expressões',
+      'Feito pra quem vive no roleplay.'
+    ];
+    let phraseIndex = 0;
+    window.setInterval(() => {
+      const heading = pitch.closest('.phrase-glitch');
+      heading.classList.add('is-glitching');
+      window.setTimeout(() => {
+        phraseIndex = (phraseIndex + 1) % phrases.length;
+        pitch.textContent = phrases[phraseIndex];
+        pitch.dataset.text = phrases[phraseIndex];
+      }, 180);
+      window.setTimeout(() => heading.classList.remove('is-glitching'), 500);
+    }, 3600);
+  }
+
   const $ = (s) => document.querySelector(s);
   const steps = ['account','card'];
   let account = null;
