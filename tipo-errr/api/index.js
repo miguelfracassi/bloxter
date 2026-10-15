@@ -83,6 +83,7 @@ function meUser(r) {
     roblox_user_id: r.roblox_user_id == null ? null : String(r.roblox_user_id),
     roblox_avatar: r.roblox_avatar || '',
     onboarding_done: !!r.onboarding_done,
+    allow_direct_group_adds: !!r.allow_direct_group_adds,
     ...flags(r),
     created_at: r.created_at,
   };
@@ -546,6 +547,8 @@ module.exports = async (req, res) => {
       let link = cur.link;
       let avatar = cur.avatar;
       let avatarV = cur.avatar_v;
+      let allowDirectGroupAdds = !!cur.allow_direct_group_adds;
+      if (typeof d.allow_direct_group_adds === 'boolean') allowDirectGroupAdds = d.allow_direct_group_adds;
 
       if (d.name !== undefined) {
         name = str(d.name, 50);
@@ -579,7 +582,7 @@ module.exports = async (req, res) => {
         [row] = await sql`
           UPDATE users
           SET name = ${name}, username = ${username}, bio = ${bio}, link = ${link},
-              avatar = ${avatar}, avatar_v = ${avatarV}
+              avatar = ${avatar}, avatar_v = ${avatarV}, allow_direct_group_adds = ${allowDirectGroupAdds}
           WHERE id = ${me}
           RETURNING *`;
       } catch (e) {
@@ -761,6 +764,141 @@ module.exports = async (req, res) => {
           id: r.id, username: r.username, name: r.name, avatar: avatarUrl(r.id, r.avatar_v), is_following: false, follows_me: r.follows_me, ...flags(r),
         })),
       });
+    }
+
+    // ---------- GRUPOS E CONVITES ----------
+    if (a === 'group-invites' && method === 'GET') {
+      need();
+      const rows = await sql`
+        SELECT i.id, i.group_id, i.created_at, g.name AS group_name,
+          u.id AS inviter_id, u.username AS inviter_username, u.name AS inviter_name, u.avatar_v AS inviter_avatar_v,
+          u.verified AS inviter_verified, u.is_ai AS inviter_is_ai
+        FROM group_invites i
+        JOIN chat_groups g ON g.id = i.group_id
+        JOIN users u ON u.id = i.inviter_id
+        WHERE i.invitee_id = ${me} AND i.status = 'pending'
+        ORDER BY i.created_at DESC LIMIT 50`;
+      return send({ invites: rows.map((r) => ({
+        id: r.id, group_id: r.group_id, group_name: r.group_name, created_at: r.created_at,
+        inviter: { id: r.inviter_id, username: r.inviter_username, name: r.inviter_name, avatar: avatarUrl(r.inviter_id, r.inviter_avatar_v), verified: !!r.inviter_verified, is_ai: !!r.inviter_is_ai },
+      })) });
+    }
+
+    if (a === 'group-invites' && b && method === 'POST') {
+      need();
+      const inviteId = Number.parseInt(b, 10);
+      if (!Number.isInteger(inviteId) || inviteId < 1) throw new HttpError(404, 'not_found');
+      const action = readBody(req).action;
+      if (!['accept','decline'].includes(action)) throw new HttpError(400, 'invalid_action');
+      const [invite] = await sql`SELECT id, group_id FROM group_invites WHERE id = ${inviteId} AND invitee_id = ${me} AND status = 'pending'`;
+      if (!invite) throw new HttpError(404, 'not_found');
+      if (action === 'accept') await sql`INSERT INTO group_members (group_id, user_id) VALUES (${invite.group_id}, ${me}) ON CONFLICT DO NOTHING`;
+      await sql`UPDATE group_invites SET status = ${action === 'accept' ? 'accepted' : 'declined'} WHERE id = ${inviteId}`;
+      return send({ ok: true, accepted: action === 'accept' });
+    }
+
+    if (a === 'groups' && !b && method === 'GET') {
+      need();
+      const rows = await sql`
+        SELECT g.id, g.name, g.created_at,
+          (SELECT count(*)::int FROM group_members gm WHERE gm.group_id = g.id) AS member_count,
+          COALESCE((SELECT gm.body FROM group_messages gm WHERE gm.group_id = g.id ORDER BY gm.id DESC LIMIT 1), '') AS last,
+          COALESCE((SELECT gm.created_at FROM group_messages gm WHERE gm.group_id = g.id ORDER BY gm.id DESC LIMIT 1), g.created_at) AS activity_at
+        FROM chat_groups g JOIN group_members mine ON mine.group_id = g.id AND mine.user_id = ${me}
+        ORDER BY activity_at DESC LIMIT 100`;
+      return send({ groups: rows });
+    }
+
+    if (a === 'groups' && !b && method === 'POST') {
+      need();
+      const d = readBody(req);
+      const name = str(d.name, 60);
+      if (name.length < 2) throw new HttpError(400, 'group_name_required');
+      const requested = Array.isArray(d.usernames) ? d.usernames.slice(0, 30) : [];
+      const names = [...new Set(requested.map(cleanUsername).filter((username) => username && username !== (String(me))))];
+      const targets = [];
+      for (const username of names) {
+        if (!USERNAME_RE.test(username)) throw new HttpError(400, 'invalid_username');
+        const [target] = await sql`SELECT id, username, allow_direct_group_adds FROM users WHERE username = ${username}`;
+        if (!target) throw new HttpError(404, 'group_user_not_found');
+        if (target.id === me) continue;
+        targets.push(target);
+      }
+      const [group] = await sql`INSERT INTO chat_groups (name, owner_id) VALUES (${name}, ${me}) RETURNING id, name, created_at`;
+      await sql`INSERT INTO group_members (group_id, user_id, role) VALUES (${group.id}, ${me}, 'owner')`;
+      let invited = 0; let added = 0;
+      for (const target of targets) {
+        if (target.allow_direct_group_adds) {
+          await sql`INSERT INTO group_members (group_id, user_id) VALUES (${group.id}, ${target.id}) ON CONFLICT DO NOTHING`;
+          added++;
+        } else {
+          await sql`INSERT INTO group_invites (group_id, inviter_id, invitee_id) VALUES (${group.id}, ${me}, ${target.id}) ON CONFLICT (group_id, invitee_id) DO UPDATE SET inviter_id = EXCLUDED.inviter_id, status = 'pending', created_at = now()`;
+          invited++;
+        }
+      }
+      return send({ group, invited, added }, 201);
+    }
+
+    if (a === 'groups' && b && c === 'invites' && method === 'POST') {
+      need();
+      const groupId = Number.parseInt(b, 10);
+      if (!Number.isInteger(groupId) || groupId < 1) throw new HttpError(404, 'not_found');
+      const [membership] = await sql`SELECT role FROM group_members WHERE group_id = ${groupId} AND user_id = ${me}`;
+      if (!membership) throw new HttpError(403, 'not_group_member');
+      const requested = Array.isArray(readBody(req).usernames) ? readBody(req).usernames.slice(0, 30) : [];
+      const names = [...new Set(requested.map(cleanUsername).filter(Boolean))];
+      if (!names.length) throw new HttpError(400, 'group_user_required');
+      const targets = [];
+      for (const username of names) {
+        if (!USERNAME_RE.test(username)) throw new HttpError(400, 'invalid_username');
+        const [target] = await sql`SELECT id, username, allow_direct_group_adds FROM users WHERE username = ${username}`;
+        if (!target) throw new HttpError(404, 'group_user_not_found');
+        if (target.id === me) continue;
+        const [already] = await sql`SELECT user_id FROM group_members WHERE group_id = ${groupId} AND user_id = ${target.id}`;
+        if (!already) targets.push(target);
+      }
+      let invited = 0; let added = 0;
+      for (const target of targets) {
+        if (target.allow_direct_group_adds) {
+          await sql`INSERT INTO group_members (group_id, user_id) VALUES (${groupId}, ${target.id}) ON CONFLICT DO NOTHING`;
+          added++;
+        } else {
+          await sql`INSERT INTO group_invites (group_id, inviter_id, invitee_id) VALUES (${groupId}, ${me}, ${target.id}) ON CONFLICT (group_id, invitee_id) DO UPDATE SET inviter_id = EXCLUDED.inviter_id, status = 'pending', created_at = now()`;
+          invited++;
+        }
+      }
+      return send({ ok: true, invited, added });
+    }
+
+    if (a === 'groups' && b && c === 'messages' && method === 'GET') {
+      need();
+      const groupId = Number.parseInt(b, 10);
+      if (!Number.isInteger(groupId) || groupId < 1) throw new HttpError(404, 'not_found');
+      const [group] = await sql`SELECT g.id, g.name, g.created_at FROM chat_groups g JOIN group_members gm ON gm.group_id = g.id WHERE g.id = ${groupId} AND gm.user_id = ${me}`;
+      if (!group) throw new HttpError(404, 'not_found');
+      const members = await sql`SELECT u.id, u.username, u.name, u.avatar_v, u.verified, u.is_ai FROM group_members gm JOIN users u ON u.id = gm.user_id WHERE gm.group_id = ${groupId} ORDER BY gm.role = 'owner' DESC, gm.joined_at ASC`;
+      const after = Number.parseInt(q.get('after'), 10) || 0;
+      let rows;
+      if (after > 0) {
+        rows = await sql`SELECT m.id, m.sender_id, m.body, m.created_at, u.username, u.name, u.avatar_v FROM group_messages m JOIN users u ON u.id = m.sender_id WHERE m.group_id = ${groupId} AND m.id > ${after} ORDER BY m.id ASC LIMIT 200`;
+      } else {
+        rows = await sql`SELECT m.id, m.sender_id, m.body, m.created_at, u.username, u.name, u.avatar_v FROM group_messages m JOIN users u ON u.id = m.sender_id WHERE m.group_id = ${groupId} ORDER BY m.id DESC LIMIT 100`;
+        rows.reverse();
+      }
+      return send({ group, members: members.map((m) => ({ id: m.id, username: m.username, name: m.name, avatar: avatarUrl(m.id, m.avatar_v), ...flags(m) })), messages: rows.map((m) => ({ id: m.id, mine: m.sender_id === me, body: m.body, created_at: m.created_at, user: { id: m.sender_id, username: m.username, name: m.name, avatar: avatarUrl(m.sender_id, m.avatar_v) } })) });
+    }
+
+    if (a === 'groups' && b && c === 'messages' && method === 'POST') {
+      need();
+      const groupId = Number.parseInt(b, 10);
+      if (!Number.isInteger(groupId) || groupId < 1) throw new HttpError(404, 'not_found');
+      const [membership] = await sql`SELECT user_id FROM group_members WHERE group_id = ${groupId} AND user_id = ${me}`;
+      if (!membership) throw new HttpError(404, 'not_found');
+      const body = str(readBody(req).body, 1000);
+      if (!body) throw new HttpError(400, 'message_empty');
+      const [row] = await sql`INSERT INTO group_messages (group_id, sender_id, body) VALUES (${groupId}, ${me}, ${body}) RETURNING id, body, created_at`;
+      const [user] = await sql`SELECT id, username, name, avatar_v FROM users WHERE id = ${me}`;
+      return send({ message: { id: row.id, mine: true, body: row.body, created_at: row.created_at, user: { id: user.id, username: user.username, name: user.name, avatar: avatarUrl(user.id, user.avatar_v) } } }, 201);
     }
 
     // ---------- MENSAGENS ----------

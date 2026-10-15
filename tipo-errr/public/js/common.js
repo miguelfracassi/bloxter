@@ -47,7 +47,7 @@
       login: 'Entrar',
       logout: 'Sair',
       or: 'ou',
-      'nav.home': 'Início',
+      'nav.home': 'Home',
       'nav.search': 'Buscar',
       'nav.messages': 'Mensagens',
       'nav.profile': 'Perfil',
@@ -513,7 +513,7 @@
   const toggles = () => `<div class="toggles">${langToggle()}${themeToggle()}</div>`;
 
   function setTitle(s) {
-    document.title = s ? `${s} · Bloxter` : 'Bloxter';
+    document.title = s || 'Bloxter';
   }
   function clearTimers() {
     state.timers.forEach(clearInterval);
@@ -545,12 +545,11 @@
         <header class="pub-head">
           <a href="/" aria-label="Bloxter"><img class="symbol-img" src="/symbol.png" alt="Bloxter" /></a>
           <div class="pub-actions">
-            ${toggles()}
             ${state.me ? '' : `<a class="btn ghost sm" href="/login">${t('login')}</a>`}
           </div>
         </header>
         <main class="pub-main" id="view"></main>
-        <footer class="pub-foot">${t('footer', { year: new Date().getFullYear() })}</footer>
+        <footer class="pub-foot"><span>${t('footer', { year: new Date().getFullYear() })}</span><span>From Ticord</span></footer>
       </div>`;
     return $('#view');
   }
@@ -568,7 +567,6 @@
     root.innerHTML = `
       <div class="topbar">
         <a href="/home" aria-label="Bloxter">${`<img class="symbol-img" src="/symbol.png" alt="Bloxter" />`}</a>
-        ${toggles()}
       </div>
       <div class="shell">
         <aside class="side">
@@ -593,12 +591,12 @@
           </form>
           <div class="box"><h3 data-t="who.title"></h3><div id="suggest"></div></div>
           <div class="foot">
-            ${toggles()}
             <button class="btn ghost sm" data-act="logout">${ICON.out}<span data-t="logout"></span></button>
-            <span class="small" data-footer></span>
           </div>
         </aside>
       </div>
+      <footer class="app-footer"><span>${t('footer', { year: new Date().getFullYear() })}</span><a href="/support">Ajuda</a><a href="/settings#accessibility">Acessibilidade</a><span>From Ticord</span></footer>
+      <a class="mobile-compose" href="/home" data-act="postnow" aria-label="Criar publicação"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L8 18l-4 1 1-4Z"/></svg></a>
       <nav class="tabbar">
         <a href="/home" data-nav="home" aria-label="Home">${ICON.home}</a>
         <a href="/search" data-nav="search" aria-label="Search">${ICON.search}</a>
@@ -614,15 +612,12 @@
   function refreshShellText() {
     root.querySelectorAll('[data-t]').forEach((el) => (el.textContent = t(el.dataset.t)));
     root.querySelectorAll('[data-ph]').forEach((el) => el.setAttribute('placeholder', t(el.dataset.ph)));
-    const f = $('[data-footer]');
-    if (f) f.textContent = t('footer', { year: new Date().getFullYear() });
     const av = $('[data-me-avatar]');
     if (av) av.innerHTML = avatar(state.me);
     const n = $('[data-me-name]');
     if (n) n.textContent = state.me.name;
     const u = $('[data-me-user]');
     if (u) u.textContent = `@${state.me.username}`;
-    document.querySelectorAll('.toggles').forEach((el) => (el.outerHTML = toggles()));
   }
 
   function setActiveNav(name) {
@@ -756,8 +751,8 @@
 
   const actions = {
     lang(el) { applyLang(el.dataset.val); },
-    theme() { applyTheme(state.theme === 'dark' ? 'light' : 'dark'); document.querySelectorAll('.toggles').forEach((x) => (x.outerHTML = toggles())); },
-    themeset(el) { applyTheme(el.dataset.val); document.querySelectorAll('.toggles').forEach((x) => (x.outerHTML = toggles())); },
+    theme() { applyTheme(state.theme === 'dark' ? 'light' : 'dark'); },
+    themeset(el) { applyTheme(el.dataset.val); },
     async logout() {
       try { await api('auth/logout', { method: 'POST' }); } catch { /* ignore */ }
       state.me = null; state.unread = 0; state.shell = null;

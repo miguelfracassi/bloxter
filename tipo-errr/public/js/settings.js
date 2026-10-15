@@ -39,6 +39,8 @@
         <h3>${t('settings.account')}</h3>
         <div class="setting-row"><div><span>${esc(t('settings.loggedAs', { email: me.email }))}</span></div>
           <button class="btn ghost sm" data-act="logout">${t('logout')}</button></div>
+        <h3>Privacidade e grupos</h3>
+        <div class="setting-card group-privacy-card"><div class="setting-card-copy"><b>Permitir adição direta em grupos</b><span>Desativado: você recebe um convite e decide se quer entrar. Ativado: pessoas podem adicionar você diretamente.</span></div><label class="switch-control"><input id="allow-group-adds" type="checkbox" ${me.allow_direct_group_adds ? 'checked' : ''}><span aria-hidden="true"></span><em>${me.allow_direct_group_adds ? 'Ativado' : 'Convite obrigatório'}</em></label></div>
         <h3>Assistente</h3>
         <div class="setting-card"><div class="setting-card-copy"><b>Converse com a LIA</b><span>Ajuda com as ferramentas e configurações do Bloxter.</span></div><a class="btn ghost" href="/support">Abrir LIA</a></div>
       </section>
@@ -72,7 +74,7 @@
       </section>
       </div>`;
     const tabButtons = [...v.querySelectorAll('[data-settings-tab]')];
-    tabButtons.forEach((tab) => tab.addEventListener('click', () => {
+    const selectSettingsTab = (tab) => {
       const selected = tab.dataset.settingsTab;
       tabButtons.forEach((item) => {
         const activeTab = item === tab;
@@ -80,10 +82,27 @@
         item.classList.toggle('ghost', !activeTab);
       });
       v.querySelectorAll('[data-settings-panel]').forEach((panel) => { panel.hidden = panel.dataset.settingsPanel !== selected; });
-    }));
+      history.replaceState(null, '', selected === 'profile' ? '/settings' : `/settings#${selected}`);
+    };
+    tabButtons.forEach((tab) => tab.addEventListener('click', () => selectSettingsTab(tab)));
+    const requestedTab = location.hash.slice(1);
+    const initialTab = tabButtons.find((tab) => tab.dataset.settingsTab === requestedTab);
+    if (initialTab) selectSettingsTab(initialTab);
     usernameChecker($('#s-user'), $('#s-hint'), { selfName: me.username });
     $('#photo').addEventListener('change', onPhoto);
     $('#settings-profile-details').addEventListener('click', () => BX.openProfileDetails({ user: state.me }));
+    $('#allow-group-adds').addEventListener('change', async (event) => {
+      const toggle = event.currentTarget;
+      toggle.disabled = true;
+      try {
+        const { user } = await api('me', { method: 'PATCH', body: { allow_direct_group_adds: toggle.checked } });
+        state.me = user;
+        const label = toggle.closest('.switch-control').querySelector('em');
+        label.textContent = toggle.checked ? 'Ativado' : 'Convite obrigatório';
+        toast('Preferência de grupos atualizada.');
+      } catch (error) { toggle.checked = !toggle.checked; toast(errMsg(error)); }
+      finally { toggle.disabled = false; }
+    });
   }
 
   function onPhoto(e) {

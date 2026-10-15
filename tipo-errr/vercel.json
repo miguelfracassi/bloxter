@@ -27,6 +27,10 @@
       "destination": "/profile.html?u=:path*"
     },
     {
+      "source": "/groups/:groupId",
+      "destination": "/chat.html?group=:groupId"
+    },
+    {
       "source": "/messages/:username",
       "destination": "/chat.html"
     },
