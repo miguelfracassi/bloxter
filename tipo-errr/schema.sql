@@ -107,6 +107,36 @@ CREATE TABLE IF NOT EXISTS group_messages (
 );
 CREATE INDEX IF NOT EXISTS group_messages_feed_idx ON group_messages (group_id, id DESC);
 
+CREATE TABLE IF NOT EXISTS developer_apps (
+  client_id TEXT PRIMARY KEY,
+  owner_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  redirect_uri TEXT NOT NULL,
+  client_secret_hash TEXT NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS developer_apps_owner_idx ON developer_apps (owner_id, created_at DESC);
+CREATE TABLE IF NOT EXISTS oauth_authorization_codes (
+  code_hash TEXT PRIMARY KEY,
+  client_id TEXT NOT NULL REFERENCES developer_apps(client_id) ON DELETE CASCADE,
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  redirect_uri TEXT NOT NULL,
+  scopes TEXT NOT NULL,
+  code_challenge TEXT NOT NULL,
+  expires_at TIMESTAMPTZ NOT NULL,
+  consumed_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE TABLE IF NOT EXISTS oauth_access_tokens (
+  token_hash TEXT PRIMARY KEY,
+  client_id TEXT NOT NULL REFERENCES developer_apps(client_id) ON DELETE CASCADE,
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  scopes TEXT NOT NULL,
+  expires_at TIMESTAMPTZ NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS oauth_tokens_expiry_idx ON oauth_access_tokens (expires_at);
+
 
 CREATE TABLE IF NOT EXISTS site_settings (
   setting_key TEXT PRIMARY KEY,

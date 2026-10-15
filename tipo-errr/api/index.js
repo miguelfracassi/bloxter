@@ -1,3 +1,5 @@
+const crypto = require('node:crypto');
+
 // Se algum módulo falhar ao carregar, devolvemos o erro em JSON (em vez da página de erro da Vercel).
 let bcrypt, getSql, ensureSchema, getUserId, setSession, clearSession, adminPassword, isAdmin, setAdmin, clearAdmin, setAdminPreview, clearAdminPreview, isAdminPreview, loadError;
 try {
@@ -66,6 +68,28 @@ function normalizeLink(raw) {
   } catch {
     throw new HttpError(400, 'invalid_link');
   }
+}
+
+function normalizeOAuthRedirect(raw) {
+  const value = str(raw, 500);
+  let url;
+  try { url = new URL(value); } catch { throw new HttpError(400, 'invalid_redirect_uri'); }
+  const local = ['localhost', '127.0.0.1', '[::1]'].includes(url.hostname);
+  if (!['https:', ...(local ? ['http:'] : [])].includes(url.protocol) || url.username || url.password || url.hash) {
+    throw new HttpError(400, 'invalid_redirect_uri');
+  }
+  return url.toString();
+}
+
+function oauthBody(req) {
+  if (req.body && typeof req.body === 'object') return req.body;
+  const raw = typeof req.body === 'string' ? req.body : '';
+  if (!raw) return {};
+  try { return JSON.parse(raw); } catch { return Object.fromEntries(new URLSearchParams(raw)); }
+}
+
+function sha256(value) {
+  return crypto.createHash('sha256').update(String(value)).digest('hex');
 }
 
 function meUser(r) {
@@ -160,6 +184,110 @@ module.exports = async (req, res) => {
       return me;
     };
     const send = (data, status = 200) => res.status(status).json(data);
+
+    // ---------- PORTAL DE DESENVOLVEDORES ----------
+    if (a === 'developers' && b === 'apps') {
+      const owner = need();
+      if (!c && method === 'GET') {
+        const apps = await sql`SELECT client_id, name, redirect_uri, created_at FROM developer_apps WHERE owner_id = ${owner} ORDER BY created_at DESC`;
+        return send({ apps });
+      }
+      if (!c && method === 'POST') {
+        const d = readBody(req);
+        const name = str(d.name, 80);
+        if (name.length < 2) throw new HttpError(400, 'app_name_required');
+        const redirectUri = normalizeOAuthRedirect(d.redirect_uri);
+        const [count] = await sql`SELECT count(*)::int AS total FROM developer_apps WHERE owner_id = ${owner}`;
+        if (Number(count.total) >= 10) throw new HttpError(409, 'app_limit');
+        const clientId = `bx_live_${crypto.randomBytes(16).toString('hex')}`;
+        const clientSecret = `bx_secret_${crypto.randomBytes(32).toString('base64url')}`;
+        const secretHash = await bcrypt.hash(clientSecret, 10);
+        const [app] = await sql`INSERT INTO developer_apps (client_id, owner_id, name, redirect_uri, client_secret_hash) VALUES (${clientId}, ${owner}, ${name}, ${redirectUri}, ${secretHash}) RETURNING client_id, name, redirect_uri, created_at`;
+        return send({ app, client_secret: clientSecret }, 201);
+      }
+      if (c && method === 'DELETE') {
+        const [deleted] = await sql`DELETE FROM developer_apps WHERE client_id = ${c} AND owner_id = ${owner} RETURNING client_id`;
+        if (!deleted) throw new HttpError(404, 'not_found');
+        return send({ ok: true });
+      }
+      if (c && method === 'POST' && parts[3] === 'rotate-secret') {
+        const [app] = await sql`SELECT client_id FROM developer_apps WHERE client_id = ${c} AND owner_id = ${owner}`;
+        if (!app) throw new HttpError(404, 'not_found');
+        const clientSecret = `bx_secret_${crypto.randomBytes(32).toString('base64url')}`;
+        const secretHash = await bcrypt.hash(clientSecret, 10);
+        await sql`UPDATE developer_apps SET client_secret_hash = ${secretHash} WHERE client_id = ${c}`;
+        return send({ client_secret: clientSecret });
+      }
+    }
+
+    // Metadados públicos da aplicação, com validação exata do endereço de retorno.
+    if (a === 'oauth' && b === 'client' && method === 'GET') {
+      const clientId = str(q.get('client_id'), 80);
+      const redirectUri = normalizeOAuthRedirect(q.get('redirect_uri'));
+      const [app] = await sql`SELECT client_id, name, redirect_uri FROM developer_apps WHERE client_id = ${clientId}`;
+      if (!app || app.redirect_uri !== redirectUri) throw new HttpError(400, 'invalid_client_or_redirect');
+      return send({ client_id: app.client_id, name: app.name, scopes: ['profile', 'email'] });
+    }
+
+    // Autorização OAuth 2.0: código curto, redirect URI exato e PKCE obrigatório.
+    if (a === 'oauth' && b === 'authorize' && method === 'POST') {
+      const userId = need();
+      const d = readBody(req);
+      const clientId = str(d.client_id, 80);
+      const redirectUri = normalizeOAuthRedirect(d.redirect_uri);
+      const stateValue = str(d.state, 256);
+      const challenge = str(d.code_challenge, 128);
+      if (d.response_type !== 'code' || !stateValue || d.code_challenge_method !== 'S256' || !/^[A-Za-z0-9_-]{43,128}$/.test(challenge)) throw new HttpError(400, 'invalid_oauth_request');
+      const requestedScopes = [...new Set(str(d.scope || 'profile', 100).split(/\s+/).filter(Boolean))];
+      if (!requestedScopes.includes('profile')) requestedScopes.unshift('profile');
+      if (requestedScopes.some((scope) => !['profile', 'email'].includes(scope))) throw new HttpError(400, 'invalid_scope');
+      const [app] = await sql`SELECT client_id, redirect_uri FROM developer_apps WHERE client_id = ${clientId}`;
+      if (!app || app.redirect_uri !== redirectUri) throw new HttpError(400, 'invalid_client_or_redirect');
+      const code = crypto.randomBytes(32).toString('base64url');
+      await sql`INSERT INTO oauth_authorization_codes (code_hash, client_id, user_id, redirect_uri, scopes, code_challenge, expires_at) VALUES (${sha256(code)}, ${clientId}, ${userId}, ${redirectUri}, ${requestedScopes.join(' ')}, ${challenge}, now() + INTERVAL '10 minutes')`;
+      return send({ code });
+    }
+
+    if (a === 'oauth' && b === 'token' && method === 'POST') {
+      const d = oauthBody(req);
+      if (d.grant_type !== 'authorization_code') throw new HttpError(400, 'unsupported_grant_type');
+      const basic = String(req.headers.authorization || '').match(/^Basic\s+(.+)$/i);
+      let basicClient = '';
+      let basicSecret = '';
+      if (basic) {
+        try { [basicClient, basicSecret] = Buffer.from(basic[1], 'base64').toString('utf8').split(':', 2); } catch { /* invalid credentials below */ }
+      }
+      const clientId = str(basicClient || d.client_id, 80);
+      const clientSecret = basicSecret || str(d.client_secret, 200);
+      const [app] = await sql`SELECT client_id, client_secret_hash FROM developer_apps WHERE client_id = ${clientId}`;
+      if (!app || !clientSecret || !(await bcrypt.compare(clientSecret, app.client_secret_hash))) throw new HttpError(401, 'invalid_client');
+      const code = str(d.code, 128);
+      const redirectUri = normalizeOAuthRedirect(d.redirect_uri);
+      const verifier = str(d.code_verifier, 128);
+      if (!code || !/^[A-Za-z0-9._~-]{43,128}$/.test(verifier)) throw new HttpError(400, 'invalid_grant');
+      const [grant] = await sql`SELECT code_hash, client_id, user_id, redirect_uri, scopes, code_challenge FROM oauth_authorization_codes WHERE code_hash = ${sha256(code)} AND expires_at > now() AND consumed_at IS NULL`;
+      if (!grant || grant.client_id !== clientId || grant.redirect_uri !== redirectUri) throw new HttpError(400, 'invalid_grant');
+      const actualChallenge = crypto.createHash('sha256').update(verifier).digest('base64url');
+      if (actualChallenge !== grant.code_challenge) throw new HttpError(400, 'invalid_grant');
+      const [consumed] = await sql`UPDATE oauth_authorization_codes SET consumed_at = now() WHERE code_hash = ${grant.code_hash} AND consumed_at IS NULL AND expires_at > now() RETURNING code_hash`;
+      if (!consumed) throw new HttpError(400, 'invalid_grant');
+      const accessToken = crypto.randomBytes(32).toString('base64url');
+      await sql`INSERT INTO oauth_access_tokens (token_hash, client_id, user_id, scopes, expires_at) VALUES (${sha256(accessToken)}, ${clientId}, ${grant.user_id}, ${grant.scopes}, now() + INTERVAL '1 hour')`;
+      res.setHeader('Cache-Control', 'no-store');
+      res.setHeader('Pragma', 'no-cache');
+      return send({ access_token: accessToken, token_type: 'Bearer', expires_in: 3600, scope: grant.scopes });
+    }
+
+    if (a === 'oauth' && b === 'userinfo' && method === 'GET') {
+      const bearer = String(req.headers.authorization || '').match(/^Bearer\s+(.+)$/i);
+      if (!bearer) throw new HttpError(401, 'invalid_token');
+      const [profile] = await sql`SELECT u.id, u.username, u.name, u.email, u.avatar_v, t.scopes FROM oauth_access_tokens t JOIN users u ON u.id = t.user_id JOIN developer_apps a ON a.client_id = t.client_id WHERE t.token_hash = ${sha256(bearer[1])} AND t.expires_at > now()`;
+      if (!profile) throw new HttpError(401, 'invalid_token');
+      const result = { sub: String(profile.id), username: profile.username, name: profile.name, picture: avatarUrl(profile.id, profile.avatar_v) };
+      if (profile.scopes.split(/\s+/).includes('email')) result.email = profile.email;
+      res.setHeader('Cache-Control', 'no-store');
+      return send(result);
+    }
 
     if (a === 'site' && b === 'status' && method === 'GET') {
       const settings = await sql`SELECT setting_key, setting_value FROM site_settings WHERE setting_key IN ('access_open','maintenance_enabled','maintenance_responsible','maintenance_reason','maintenance_updates')`;
@@ -310,7 +438,7 @@ module.exports = async (req, res) => {
 
     const [accessSetting] = await sql`SELECT setting_value FROM site_settings WHERE setting_key = 'access_open'`;
     const accessOpen = accessSetting ? accessSetting.setting_value === 'true' : false;
-    const reserveAllowed = (a === 'auth' && b === 'register') || a === 'username-available';
+    const reserveAllowed = (a === 'auth' && ['register', 'login', 'logout'].includes(b)) || a === 'username-available' || (a === 'me' && !b && method === 'GET');
     if (!accessOpen && !isAdminPreview(req) && !reserveAllowed) throw new HttpError(423, 'site_closed');
 
     if (a === 'lia' && b === 'chat' && method === 'POST') {

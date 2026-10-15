@@ -116,6 +116,35 @@ async function createAll() {
   await s`ALTER TABLE users ADD COLUMN IF NOT EXISTS roblox_avatar TEXT NOT NULL DEFAULT ''`;
   await s`ALTER TABLE users ADD COLUMN IF NOT EXISTS onboarding_done BOOLEAN NOT NULL DEFAULT false`;
   await s`ALTER TABLE users ADD COLUMN IF NOT EXISTS allow_direct_group_adds BOOLEAN NOT NULL DEFAULT false`;
+  await s`CREATE TABLE IF NOT EXISTS developer_apps (
+    client_id TEXT PRIMARY KEY,
+    owner_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    name TEXT NOT NULL,
+    redirect_uri TEXT NOT NULL,
+    client_secret_hash TEXT NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+  )`;
+  await s`CREATE INDEX IF NOT EXISTS developer_apps_owner_idx ON developer_apps (owner_id, created_at DESC)`;
+  await s`CREATE TABLE IF NOT EXISTS oauth_authorization_codes (
+    code_hash TEXT PRIMARY KEY,
+    client_id TEXT NOT NULL REFERENCES developer_apps(client_id) ON DELETE CASCADE,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    redirect_uri TEXT NOT NULL,
+    scopes TEXT NOT NULL,
+    code_challenge TEXT NOT NULL,
+    expires_at TIMESTAMPTZ NOT NULL,
+    consumed_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+  )`;
+  await s`CREATE TABLE IF NOT EXISTS oauth_access_tokens (
+    token_hash TEXT PRIMARY KEY,
+    client_id TEXT NOT NULL REFERENCES developer_apps(client_id) ON DELETE CASCADE,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    scopes TEXT NOT NULL,
+    expires_at TIMESTAMPTZ NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+  )`;
+  await s`CREATE INDEX IF NOT EXISTS oauth_tokens_expiry_idx ON oauth_access_tokens (expires_at)`;
   await s`CREATE TABLE IF NOT EXISTS site_settings (
     setting_key TEXT PRIMARY KEY,
     setting_value TEXT NOT NULL
