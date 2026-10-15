@@ -29,19 +29,21 @@
   }
 
   function editor() {
-    app.innerHTML = `${brand}<main class="wrap"><header class="heading"><div><span class="eyebrow">POST PARA INSTAGRAM</span><h1>Monte sua notícia</h1><p>Escolha uma foto, escreva a chamada e salve a arte em PNG.</p></div><span class="format">FEED · 1080 × 1350 · 4:5</span></header><div class="grid"><section class="panel"><h2>Conteúdo da publicação</h2><div class="field"><label for="photo-input">Foto de fundo</label><label class="upload" id="upload-zone" for="photo-input"><span><span class="upload-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4m0 0L7 9m5-5 5 5"/><path d="M4 15v4a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-4"/></svg></span><b>Escolher ou soltar uma foto</b><span>PNG, JPG ou WebP · até 10 MB</span></span></label><input id="photo-input" type="file" accept="image/png,image/jpeg,image/webp" hidden><div class="file-meta" id="file-meta">Nenhuma foto selecionada.</div></div><div class="field"><label for="news-title">Notícia</label><textarea id="news-title" maxlength="180" placeholder="Escreva a chamada principal da notícia…" required></textarea><small><span id="char-count">0</span>/180 · O texto fica sobre a faixa escura na parte inferior.</small></div><div class="field"><label for="news-label">Categoria</label><input id="news-label" maxlength="28" value="NOTÍCIA" placeholder="Ex.: COMUNICADO"></div><div class="sliders"><label class="range-field"><span class="range-head"><span>Zoom da foto</span><span id="zoom-value">100%</span></span><input id="zoom" type="range" min="100" max="180" value="100"></label><label class="range-field"><span class="range-head"><span>Enquadramento vertical</span><span id="position-value">50%</span></span><input id="position" type="range" min="0" max="100" value="50"></label></div><div class="actions"><button class="btn" id="save-png" type="button" disabled>Salvar imagem PNG</button><button class="btn secondary" id="clear-form" type="button">Limpar</button></div><p class="help">A imagem é montada no seu navegador e baixada em 1080 × 1350 px. A foto escolhida não é enviada ao Bloxter.</p></section><section class="panel preview-panel"><div class="preview-head"><h2>Prévia do post</h2><span>prévia em proporção 4:5</span></div><div class="canvas-wrap"><div class="preview"><canvas id="post-canvas" width="1080" height="1350" aria-label="Prévia da notícia para Instagram"></canvas></div></div><div class="preview-bottom"><span>A sombra inferior melhora a leitura do texto sobre a foto.</span><button class="btn" id="save-png-preview" type="button" disabled>Baixar PNG</button></div></section></div></main><footer class="footer"><span>© ${new Date().getFullYear()} Bloxter</span><span>From Ticord</span><button class="plain" id="admin-logout" type="button">Sair do editor</button></footer>`;
+    app.innerHTML = `${brand}<main class="wrap"><header class="heading"><div><span class="eyebrow">POST PARA INSTAGRAM</span><h1>Monte sua notícia</h1><p>Escolha uma foto, escreva a chamada e salve a arte em PNG.</p></div><span class="format">FEED · 1080 × 1350 · 4:5</span></header><div class="grid"><section class="panel"><h2>Conteúdo da publicação</h2><div class="field"><label for="photo-input">Foto de fundo</label><label class="upload" id="upload-zone" for="photo-input"><span><span class="upload-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4m0 0L7 9m5-5 5 5"/><path d="M4 15v4a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-4"/></svg></span><b>Escolher ou soltar uma foto</b><span>PNG, JPG ou WebP · até 10 MB</span></span></label><input id="photo-input" type="file" accept="image/png,image/jpeg,image/webp" hidden><div class="file-meta" id="file-meta">Nenhuma foto selecionada.</div></div><div class="field"><label for="news-title">Notícia</label><textarea id="news-title" maxlength="180" placeholder="Escreva a chamada principal da notícia…" required></textarea><small><span id="char-count">0</span>/180 · O texto fica sobre a faixa escura na parte inferior.</small></div><div class="field"><label for="news-label">Categoria</label><input id="news-label" maxlength="28" value="NOTÍCIA" placeholder="Ex.: COMUNICADO"></div><div class="sliders"><label class="range-field"><span class="range-head"><span>Tamanho da fonte</span><span id="font-value">72 px</span></span><input id="font-size" type="range" min="28" max="100" value="72"></label><label class="range-field"><span class="range-head"><span>Zoom da foto</span><span id="zoom-value">100%</span></span><input id="zoom" type="range" min="100" max="180" value="100"></label><label class="range-field"><span class="range-head"><span>Enquadramento vertical</span><span id="position-value">50%</span></span><input id="position" type="range" min="0" max="100" value="50"></label></div><div class="actions"><button class="btn" id="save-png" type="button" disabled>Salvar imagem PNG</button><button class="btn secondary" id="clear-form" type="button">Limpar</button></div><p class="help">A imagem é montada no seu navegador e baixada em 1080 × 1350 px. Se o texto for longo, a fonte pode diminuir para caber. A foto escolhida não é enviada ao Bloxter.</p></section><section class="panel preview-panel"><div class="preview-head"><h2>Prévia do post</h2><span>prévia em proporção 4:5</span></div><div class="canvas-wrap"><div class="preview"><canvas id="post-canvas" width="1080" height="1350" aria-label="Prévia da notícia para Instagram"></canvas></div></div><div class="preview-bottom"><span>A sombra inferior melhora a leitura do texto sobre a foto.</span><button class="btn" id="save-png-preview" type="button" disabled>Baixar PNG</button></div></section></div></main><footer class="footer"><span>© ${new Date().getFullYear()} Bloxter</span><span>From Ticord</span><button class="plain" id="admin-logout" type="button">Sair do editor</button></footer>`;
     const canvas = $('#post-canvas');
     const ctx = canvas.getContext('2d');
     const input = $('#photo-input');
     const upload = $('#upload-zone');
     const title = $('#news-title');
     const label = $('#news-label');
+    const fontSize = $('#font-size');
     const zoom = $('#zoom');
     const position = $('#position');
     const saveButtons = [$('#save-png'), $('#save-png-preview')];
-    const render = () => drawPost(ctx, canvas, photo, title.value.trim(), label.value.trim(), Number(zoom.value) / 100, Number(position.value) / 100);
+    const render = () => drawPost(ctx, canvas, photo, title.value.trim(), label.value.trim(), Number(fontSize.value), Number(zoom.value) / 100, Number(position.value) / 100);
     const update = () => {
       $('#char-count').textContent = String(title.value.length);
+      $('#font-value').textContent = `${fontSize.value} px`;
       $('#zoom-value').textContent = `${zoom.value}%`;
       $('#position-value').textContent = `${position.value}%`;
       saveButtons.forEach((button) => { button.disabled = !photo || !title.value.trim(); });
@@ -51,11 +53,11 @@
     ['dragenter', 'dragover'].forEach((eventName) => upload.addEventListener(eventName, (event) => { event.preventDefault(); upload.classList.add('drag'); }));
     ['dragleave', 'drop'].forEach((eventName) => upload.addEventListener(eventName, (event) => { event.preventDefault(); upload.classList.remove('drag'); }));
     upload.addEventListener('drop', (event) => choosePhoto(event.dataTransfer.files?.[0], update));
-    [title, label, zoom, position].forEach((inputNode) => inputNode.addEventListener('input', update));
+    [title, label, fontSize, zoom, position].forEach((inputNode) => inputNode.addEventListener('input', update));
     saveButtons.forEach((button) => button.addEventListener('click', () => savePng(canvas, title.value)));
     $('#clear-form').addEventListener('click', () => {
       if (photoUrl) URL.revokeObjectURL(photoUrl);
-      photoUrl = ''; photo = null; input.value = ''; title.value = ''; label.value = 'NOTÍCIA'; zoom.value = '100'; position.value = '50'; $('#file-meta').textContent = 'Nenhuma foto selecionada.'; update();
+      photoUrl = ''; photo = null; input.value = ''; title.value = ''; label.value = 'NOTÍCIA'; fontSize.value = '72'; zoom.value = '100'; position.value = '50'; $('#file-meta').textContent = 'Nenhuma foto selecionada.'; update();
     });
     $('#admin-logout').addEventListener('click', async () => { await api('admin/logout', 'POST').catch(() => {}); adminSession = false; login(); });
     document.fonts?.ready.then(update);
@@ -88,7 +90,7 @@
     return lines;
   }
 
-  function drawPost(ctx, canvas, image, headline, category, zoom, verticalPosition) {
+  function drawPost(ctx, canvas, image, headline, category, preferredFontSize, zoom, verticalPosition) {
     const width = canvas.width, height = canvas.height;
     ctx.clearRect(0, 0, width, height);
     if (image) {
@@ -128,15 +130,16 @@
     ctx.fillStyle = '#fff'; ctx.textBaseline = 'middle'; ctx.fillText(pill, 90, pillY + 21); ctx.textBaseline = 'alphabetic';
 
     const text = headline || 'Sua notícia aparece aqui';
-    let fontSize = 72, lines = [];
-    while (fontSize >= 42) {
+    let fontSize = preferredFontSize, lines = [];
+    while (fontSize >= 24) {
       ctx.font = `700 ${fontSize}px Poppins, Arial, sans-serif`;
       lines = wrapText(ctx, text, width - 144);
-      if (lines.length <= 6 && lines.length * fontSize * 1.14 <= 330) break;
-      fontSize -= 2;
+      if (lines.length <= 6 && lines.length * fontSize * 1.14 <= 250) break;
+      fontSize -= 1;
     }
     if (lines.length > 6) {
       lines = lines.slice(0, 6);
+      ctx.font = `700 ${fontSize}px Poppins, Arial, sans-serif`;
       let last = lines[5];
       while (ctx.measureText(`${last}…`).width > width - 144 && last.length) last = last.slice(0, -1);
       lines[5] = `${last.trimEnd()}…`;
