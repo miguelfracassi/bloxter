@@ -54,8 +54,8 @@
       const ownCount = myStories ? storyGroups[0].stories.length : 0;
       const ownViewed = myStories && storyGroups[0].stories.every((s) => s.viewed);
       strip.innerHTML = `
-        <button class="story-item story-own" type="button" data-story-add aria-label="Criar story">
-          <span class="story-avatar-wrap ${ownCount ? (ownViewed ? 'seen' : 'unseen') : 'empty'}">${avatar(state.me, 's64')}<i aria-hidden="true">+</i></span>
+        <button class="story-item story-own" type="button" ${ownCount ? 'data-story-group="0" aria-label="Ver meu story"' : 'data-story-add aria-label="Criar story"'}>
+          <span class="story-avatar-wrap ${ownCount ? (ownViewed ? 'seen' : 'unseen') : 'empty'}">${avatar(state.me, 's64')}<i data-story-add role="button" aria-label="Criar story">+</i></span>
           <span class="story-label">${ownCount ? 'Seu story' : 'Adicionar'}</span>
           ${ownCount ? `<span class="story-sub">${ownCount} ${ownCount === 1 ? 'story' : 'stories'}</span>` : ''}
         </button>
