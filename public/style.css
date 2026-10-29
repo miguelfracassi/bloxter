@@ -931,3 +931,55 @@ img { display: block; max-width: 100%; }
 @keyframes tour-out { from { opacity:1; } to { opacity:0; } }
 @keyframes tour-step { from { opacity:0; transform:translateY(12px) scale(.97); } to { opacity:1; transform:none; } }
 @media (prefers-reduced-motion: reduce) { .tour-ov, .tour-step { animation:none; } }
+
+/* ---- vídeo em publicações ---- */
+.post-video { margin-top: 8px; border-radius: 16px; overflow: hidden; border: 1px solid var(--line); max-width: 520px; background: #000; }
+.post-video video { display: block; width: 100%; max-height: 520px; background: #000; }
+.composer-video video { width: 100%; height: 100%; object-fit: cover; display: block; }
+
+/* ---- listas de seguidores / seguindo ---- */
+.count-link { cursor: pointer; }
+.count-link:hover { text-decoration: underline; }
+.bx-sheet-body .search-form { padding: 12px 18px 4px; }
+.plist-rows { overflow-y: auto; max-height: 60vh; }
+.plist-rows .urow:last-child { border-bottom: 0; }
+
+/* ---- seletor de contas (menu inferior do celular) ---- */
+.tabbar .tab-av { width: 28px; height: 28px; font-size: 13px; -webkit-touch-callout: none; user-select: none; -webkit-user-select: none; }
+.tabbar a[data-nav="profile"] { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; touch-action: manipulation; }
+.tabbar a[data-nav="profile"].active .tab-av { box-shadow: 0 0 0 2px var(--fg); }
+.acct-pop {
+  position: fixed; left: 50%; bottom: calc(70px + env(safe-area-inset-bottom)); transform: translateX(-50%); z-index: 30;
+  width: min(300px, calc(100vw - 24px)); padding: 6px; display: flex; flex-direction: column; gap: 2px;
+  background: var(--bg); color: var(--fg); border: 1px solid var(--line); border-radius: 18px; box-shadow: 0 12px 40px rgba(0,0,0,.45);
+}
+.acct-head { padding: 8px 12px 6px; font-size: 12px; font-weight: 600; color: var(--fg2); text-transform: uppercase; letter-spacing: .04em; }
+.acct-row { display: flex; align-items: center; gap: 2px; border-radius: 12px; }
+.acct-row.on { background: var(--hover); }
+.acct-pick { flex: 1; min-width: 0; display: flex; align-items: center; gap: 10px; padding: 8px 10px; text-align: left; border-radius: 12px; color: inherit; }
+.acct-meta { flex: 1; min-width: 0; display: flex; flex-direction: column; line-height: 1.25; }
+.acct-meta b, .acct-meta small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.acct-meta small { color: var(--fg2); font-size: 12px; }
+.acct-check { font-weight: 700; }
+.acct-x { width: 32px; height: 32px; margin-right: 6px; border-radius: 50%; color: var(--fg2); font-size: 12px; }
+.acct-x:hover { background: var(--hover); }
+.acct-link { display: block; width: 100%; padding: 12px 14px; border-radius: 12px; font-size: 15px; font-weight: 500; text-align: left; color: inherit; border-top: 1px solid var(--line); border-radius: 0; }
+.acct-link:active, .acct-pick:active { background: var(--hover); }
+.acct-out { color: var(--fg2); }
+@media (min-width: 721px) { .acct-pop { display: none; } }
+
+/* ---- música do post (YouTube) ---- */
+.composer-music { width: 100%; margin-top: 8px; padding: 9px 12px; border: 1px solid var(--line); border-radius: 12px; background: transparent; color: var(--fg); font: inherit; font-size: 14px; }
+.composer-music:focus { outline: 0; border-color: var(--fg); }
+.composer-music[hidden] { display: none; }
+.post-music { position: relative; display: inline-flex; align-items: center; gap: 6px; margin-top: 8px; max-width: 100%; }
+.post-music .pm-btn { flex: none; width: 32px; height: 32px; display: grid; place-items: center; border-radius: 50%; background: rgba(0, 0, 0, .65); color: #fff; }
+.post-music .pm-btn:hover { background: rgba(0, 0, 0, .8); }
+.post-music.pm-on .pm-btn { box-shadow: 0 0 0 2px var(--fg); }
+.pm-title { min-width: 0; max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; color: var(--fg2); text-align: left; }
+.pm-vol { flex: none; width: 0; opacity: 0; transition: width .15s, opacity .15s; accent-color: var(--fg); }
+.post-music:hover .pm-vol, .post-music:focus-within .pm-vol, .post-music.pm-on .pm-vol { width: 72px; opacity: 1; }
+.pm-host { position: absolute; width: 1px; height: 1px; overflow: hidden; opacity: 0; pointer-events: none; }
+@media (max-width: 380px) { .pm-vol { width: 56px; } }
+.composer-music-msg { margin-top: 6px; font-size: 13px; color: var(--fg2); }
+.composer-music-msg[hidden], #composer-music-preview[hidden] { display: none; }

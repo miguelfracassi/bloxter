@@ -24,9 +24,13 @@
         <div class="box">
           <textarea name="body" maxlength="500" rows="2" placeholder="${esc(t('home.placeholder'))}"></textarea>
           <div class="composer-previews" id="composer-previews" hidden></div>
+          <input type="url" id="composer-music" class="composer-music" placeholder="Link da música do YouTube" autocomplete="off" hidden />
+          <div class="composer-music-msg" id="composer-music-msg" role="alert" hidden></div>
+          <div id="composer-music-preview" hidden></div>
+          <input type="text" id="composer-music-start" class="composer-music" placeholder="Começar em (ex.: 1:05)" inputmode="numeric" autocomplete="off" aria-label="Começar a música em" hidden />
           <div class="row">
-            <label class="icon-btn composer-photo" title="Adicionar fotos" aria-label="Adicionar fotos">${BX.ICON.image}<input type="file" id="composer-files" accept="image/png,image/jpeg,image/webp" multiple hidden /></label>
-            <span class="counter">500</span><button class="btn sm" type="submit">${t('post')}</button>
+            <label class="icon-btn composer-photo" title="Adicionar fotos ou vídeo" aria-label="Adicionar fotos ou vídeo">${BX.ICON.image}<input type="file" id="composer-files" accept="image/png,image/jpeg,image/webp,video/mp4,video/webm,video/quicktime" multiple hidden /></label>
+            <button type="button" class="icon-btn composer-music-btn" data-act="musictoggle" title="Adicionar música" aria-label="Adicionar música"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg></button><span class="counter">500</span><button class="btn sm" type="submit">${t('post')}</button>
           </div>
         </div>
       </form>
@@ -351,6 +355,8 @@
   // Fotos do post: até 4, reduzidas no aparelho antes de enviar.
   const MAX_POST_IMAGES = 4;
   let composerImages = []; // data URIs prontos
+  let composerVideo = ''; // data URI do vídeo (máx. 1, ~3 MB)
+  const MAX_VIDEO_BYTES = 3 * 1024 * 1024;
 
   function shrinkPostImage(file) {
     return new Promise((resolve, reject) => {
@@ -381,20 +387,34 @@
   function renderComposerPreviews() {
     const box = $('#composer-previews');
     if (!box) return;
-    box.hidden = !composerImages.length;
-    box.innerHTML = composerImages.map((src, i) => `<div class="composer-thumb"><img src="${esc(src)}" alt="" /><button type="button" data-rm-img="${i}" aria-label="Remover foto ${i + 1}">✕</button></div>`).join('');
+    box.hidden = !composerImages.length && !composerVideo;
+    box.innerHTML = (composerVideo ? `<div class="composer-thumb composer-video"><video src="${esc(composerVideo)}" muted playsinline preload="metadata"></video><button type="button" data-rm-video aria-label="Remover vídeo">✕</button></div>` : '') + composerImages.map((src, i) => `<div class="composer-thumb"><img src="${esc(src)}" alt="" /><button type="button" data-rm-img="${i}" aria-label="Remover foto ${i + 1}">✕</button></div>`).join('');
     const label = $('.composer-photo');
-    if (label) label.classList.toggle('disabled', composerImages.length >= MAX_POST_IMAGES);
+    if (label) label.classList.toggle('disabled', composerImages.length >= MAX_POST_IMAGES || !!composerVideo);
   }
 
   function setupComposerPhotos(view) {
     composerImages = [];
+    composerVideo = '';
     const input = view.querySelector('#composer-files');
     const box = view.querySelector('#composer-previews');
     if (!input || !box) return;
     input.addEventListener('change', async () => {
-      const files = [...input.files];
+      let files = [...input.files];
       input.value = '';
+      const vid = files.find((f) => /^video\/(mp4|webm|quicktime)$/.test(f.type));
+      if (vid) {
+        if (composerImages.length || composerVideo || files.length > 1) toast(t('err.invalid_video'));
+        else if (vid.size > MAX_VIDEO_BYTES) toast(t('err.video_too_large'));
+        else {
+          try {
+            composerVideo = await new Promise((ok, fail) => { const r = new FileReader(); r.onload = () => ok(String(r.result)); r.onerror = fail; r.readAsDataURL(vid); });
+          } catch { toast(t('err.invalid_video')); }
+          renderComposerPreviews();
+        }
+        return;
+      }
+      if (composerVideo) { toast(t('err.invalid_video')); return; }
       const room = MAX_POST_IMAGES - composerImages.length;
       if (files.length > room) toast(t('err.too_many_images'));
       for (const file of files.slice(0, Math.max(0, room))) {
@@ -404,6 +424,7 @@
       renderComposerPreviews();
     });
     box.addEventListener('click', (e) => {
+      if (e.target.closest('[data-rm-video]')) { composerVideo = ''; renderComposerPreviews(); return; }
       const rm = e.target.closest('[data-rm-img]');
       if (!rm) return;
       composerImages.splice(Number(rm.dataset.rmImg), 1);
@@ -411,16 +432,80 @@
     });
   }
 
+  // Prévia da música no compositor: valida o link, mostra o mesmo player global e guarda o ID.
+  let composerMusicId = '';
+  const titleCache = new Map();
+  async function ytTitle(id) {
+    if (titleCache.has(id)) return titleCache.get(id);
+    let title = '';
+    try {
+      const r = await fetch(`https://www.youtube.com/oembed?format=json&url=${encodeURIComponent(`https://www.youtube.com/watch?v=${id}`)}`);
+      if (r.ok) title = String((await r.json()).title || '').slice(0, 100);
+    } catch { /* sem título: usa o texto padrão */ }
+    titleCache.set(id, title);
+    return title;
+  }
+  function clearMusicPreview() {
+    const box = $('#composer-music-preview'); const msg = $('#composer-music-msg');
+    if (box && BX.music) { const pb = box.querySelector('.post-music'); if (pb) BX.music.stop(pb); box.innerHTML = ''; box.hidden = true; }
+    if (msg) { msg.hidden = true; msg.textContent = ''; }
+    composerMusicId = '';
+    const st = $('#composer-music-start'); if (st) { st.hidden = true; st.value = ''; }
+  }
+  async function updateMusicPreview() {
+    const input = $('#composer-music'); const box = $('#composer-music-preview'); const msg = $('#composer-music-msg');
+    if (!input || !box || !msg) return;
+    const raw = input.value.trim();
+    if (!raw) { clearMusicPreview(); return; }
+    const id = BX.music.ytId(raw);
+    if (!id) {
+      clearMusicPreview();
+      msg.textContent = t('err.invalid_music'); msg.hidden = false;
+      return;
+    }
+    if (id === composerMusicId) return;
+    clearMusicPreview();
+    composerMusicId = id;
+    const title = await ytTitle(id);
+    if (composerMusicId !== id) return; // link mudou enquanto buscava o título
+    const st = $('#composer-music-start');
+    const start0 = BX.music.ytStart(raw);
+    if (st) { st.hidden = false; st.value = start0 ? BX.music.fmtTime(start0) : ''; }
+    box.innerHTML = BX.music.html({ id, title: title || 'Prévia da música', start: start0 }, true);
+    box.hidden = false;
+    BX.music.sync();
+  }
+  document.addEventListener('input', (e) => { if (e.target && e.target.id === 'composer-music') updateMusicPreview(); });
+  // Mudou o ponto de início: atualiza a prévia (e toca a partir de lá se já estiver tocando).
+  document.addEventListener('change', (e) => {
+    if (!e.target || e.target.id !== 'composer-music-start') return;
+    const bar = $('#composer-music-preview .post-music'); if (!bar) return;
+    const sec = BX.music.parseTime(e.target.value);
+    e.target.value = sec ? BX.music.fmtTime(sec) : '';
+    bar.dataset.start = String(sec);
+    const ti = bar.querySelector('.pm-title'); if (ti) ti.textContent = ti.textContent.replace(/ · \d+:\d{2}$/, '') + (sec ? ` · ${BX.music.fmtTime(sec)}` : '');
+    BX.music.seek(bar, sec);
+  });
+  document.addEventListener('click', (e) => {
+    const b = e.target.closest && e.target.closest('[data-act="musictoggle"]');
+    if (b) setTimeout(() => { const i = $('#composer-music'); if (i && i.hidden) clearMusicPreview(); }, 0);
+  });
+
   forms.post = async (form) => {
     const textarea = form.body;
     const body = textarea.value.trim();
-    if (!body && !composerImages.length) return toast(t('err.post_empty'));
+    const musicInput = $('#composer-music');
+    const music = musicInput ? musicInput.value.trim() : '';
+    if (music && !BX.music.ytId(music)) return toast(t('err.invalid_music'));
+    if (!body && !composerImages.length && !composerVideo && !music) return toast(t('err.post_empty'));
     const button = $('button[type=submit]', form);
     button.disabled = true;
     try {
-      const { post } = await api('posts', { method: 'POST', body: { body, images: composerImages } });
+      const { post } = await api('posts', { method: 'POST', body: { body, images: composerImages, video: composerVideo || undefined, music: music || undefined, music_start: music ? BX.music.parseTime(($('#composer-music-start') || {}).value) : undefined } });
+      if (musicInput) { musicInput.value = ''; musicInput.hidden = true; clearMusicPreview(); }
       textarea.value = '';
       composerImages = [];
+      composerVideo = '';
       renderComposerPreviews();
       $('.counter', form).textContent = '500';
       const list = $('#posts');

@@ -305,6 +305,240 @@
     return { open: render };
   }
 
+  // ---------- Top 10 do dia (IA da Groq) + leitura em voz alta ----------
+  function topModule() {
+    const box = document.getElementById('top-box');
+    const synth = window.speechSynthesis;
+    let posts = [];
+    let playing = 0;      // id do post sendo lido (0 = nenhum)
+    let queueMode = false; // "Ouvir todos"
+    let runId = 0;
+    let rate = Number(localStorage.getItem('bx_tts_rate')) || 1;
+    const when = (d) => new Date(d).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+
+    // Texto falado: tira links e emojis, que os sintetizadores leem muito mal.
+    const spokenText = (p) => {
+      const body = String(p.body || '')
+        .replace(/https?:\/\/\S+/gi, ' link ')
+        .replace(/[\p{Extended_Pictographic}\uFE0F\u200D]/gu, '')
+        .replace(/\s+/g, ' ').trim();
+      return `Número ${p.rank}. Post de ${p.user.name || p.user.username}. ${body}`;
+    };
+    const pickVoice = () => {
+      const v = synth.getVoices();
+      return v.find((x) => /^pt-BR/i.test(x.lang) && /google|luciana|francisca|microsoft/i.test(x.name)) || v.find((x) => /^pt-BR/i.test(x.lang)) || v.find((x) => /^pt/i.test(x.lang)) || null;
+    };
+    function mark() {
+      box.querySelectorAll('[data-post]').forEach((el) => {
+        const on = Number(el.dataset.post) === playing;
+        el.style.background = on ? 'color-mix(in srgb, var(--fg) 8%, transparent)' : '';
+        const b = el.querySelector('[data-say]');
+        if (b) b.textContent = on ? '■ Parar' : '▶ Ouvir';
+      });
+      const all = box.querySelector('#top-all');
+      if (all) all.textContent = queueMode ? '■ Parar leitura' : '▶ Ouvir todos';
+    }
+    function stop() {
+      runId++;
+      queueMode = false;
+      playing = 0;
+      if (synth) synth.cancel();
+      mark();
+    }
+    function speak(p, onEnd) {
+      if (!synth) { toast('Seu navegador não suporta voz.'); return; }
+      synth.cancel();
+      const my = ++runId;
+      const u = new SpeechSynthesisUtterance(spokenText(p));
+      const voice = pickVoice();
+      u.lang = voice ? voice.lang : 'pt-BR';
+      if (voice) u.voice = voice;
+      u.rate = rate;
+      playing = p.id;
+      u.onend = () => { if (my !== runId) return; playing = 0; mark(); if (onEnd) onEnd(); };
+      u.onerror = () => { if (my !== runId) return; playing = 0; queueMode = false; mark(); };
+      mark();
+      synth.speak(u);
+    }
+    function playAll(i) {
+      if (!queueMode || i >= posts.length) { queueMode = false; mark(); return; }
+      speak(posts[i], () => playAll(i + 1));
+    }
+
+    const card = (p) => `<div class="u" data-post="${p.id}" style="cursor:pointer;border-radius:12px;padding-left:8px;padding-right:8px">
+      <div class="uh">
+        <b style="font-size:22px;min-width:34px;color:var(--fg2)">${p.rank}º</b>
+        <span class="av">${p.user.avatar ? `<img src="${esc(p.user.avatar)}" alt="" />` : esc((p.user.name || p.user.username || '?').trim().charAt(0))}</span>
+        <div class="info"><b>${esc(p.user.name)}${p.user.verified ? `<span class="vbadge">${VERIFIED}</span>` : ''}</b><span class="h">@${esc(p.user.username)} · ${when(p.created_at)} · #${p.id}</span></div>
+        <button class="btn sm" type="button" data-say>▶ Ouvir</button>
+      </div>
+      <div style="overflow-wrap:anywhere;white-space:pre-wrap">${esc(p.body)}</div>
+      <div class="count">♥ ${fmtN(p.likes)} · 💬 ${fmtN(p.comments)} · ⟲ ${fmtN(p.reposts)}${p.reason ? ` · <i>IA: ${esc(p.reason)}</i>` : ''}</div>
+    </div>`;
+
+    function paint(data) {
+      const info = box.querySelector('#top-info');
+      const list = box.querySelector('#top-list');
+      posts = data.posts || [];
+      box.querySelector('#top-all').hidden = !posts.length;
+      if (!data.generated) {
+        info.textContent = 'Ainda não analisado hoje. Clique em “Analisar posts do dia”.';
+        list.innerHTML = '';
+        return;
+      }
+      if (!posts.length) {
+        info.textContent = 'Ainda não há posts hoje para analisar.';
+        list.innerHTML = '<div class="empty">Sem posts hoje.</div>';
+        return;
+      }
+      const src = data.source === 'groq' ? 'escolhidos pela IA (Groq)' : 'ordenados por engajamento (a IA não respondeu)';
+      info.textContent = `Top ${posts.length} de ${data.day.split('-').reverse().join('/')}, ${src}. Atualizado às ${new Date(data.generated_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}. Clique num post para ouvir.`;
+      list.innerHTML = posts.map(card).join('');
+      mark();
+    }
+
+    async function load() {
+      try { paint(await api('admin/top-posts')); }
+      catch (e) {
+        if (e.status === 401) return loginView();
+        box.querySelector('#top-info').textContent = 'Erro ao carregar.';
+      }
+    }
+
+    function render() {
+      box.innerHTML = `
+        <h2 style="font-size:17px;margin:0 0 4px">Top 10 do dia (IA)</h2>
+        <p class="sub" style="margin:0 0 12px">A IA da Groq analisa os posts de hoje (engajamento, originalidade e qualidade) e escolhe os 10 melhores. Clique num post para ele ser lido em voz alta.</p>
+        <div class="row" style="margin-bottom:10px">
+          <button class="btn sm" type="button" id="top-run">Analisar posts do dia</button>
+          <button class="btn ghost sm" type="button" id="top-all" hidden>▶ Ouvir todos</button>
+          <label class="count" style="display:inline-flex;align-items:center;gap:6px">Velocidade
+            <select id="top-rate" style="background:transparent;color:var(--fg);border:1px solid var(--line);border-radius:8px;padding:6px">
+              <option value="0.8">Lenta</option><option value="1">Normal</option><option value="1.2">Rápida</option><option value="1.5">Muito rápida</option>
+            </select></label>
+        </div>
+        <p class="count" id="top-info" style="margin:0 0 6px">Carregando...</p>
+        <div id="top-list"></div>`;
+      const sel = box.querySelector('#top-rate');
+      sel.value = ['0.8', '1', '1.2', '1.5'].includes(String(rate)) ? String(rate) : '1';
+      sel.addEventListener('change', () => { rate = Number(sel.value); try { localStorage.setItem('bx_tts_rate', String(rate)); } catch { /* ignore */ } });
+
+      const run = box.querySelector('#top-run');
+      run.addEventListener('click', async () => {
+        stop();
+        run.disabled = true;
+        run.textContent = 'Analisando...';
+        try {
+          paint(await api('admin/top-posts', 'POST'));
+          toast('Análise concluída.');
+        } catch (x) {
+          if (x.status === 401) return loginView();
+          toast('Não foi possível analisar agora.');
+        }
+        run.disabled = false;
+        run.textContent = 'Analisar de novo';
+      });
+      box.querySelector('#top-all').addEventListener('click', () => {
+        if (queueMode) return stop();
+        stop();
+        queueMode = true;
+        playAll(0);
+      });
+      box.querySelector('#top-list').addEventListener('click', (e) => {
+        const el = e.target.closest('[data-post]');
+        if (!el) return;
+        const id = Number(el.dataset.post);
+        if (playing === id) return stop();
+        stop();
+        const p = posts.find((x) => x.id === id);
+        if (p) speak(p);
+      });
+      if (synth) synth.getVoices(); // algumas vozes carregam só depois da primeira chamada
+      load();
+    }
+    return { open: render, stop };
+  }
+
+  // ---------- Contratos de ingressamento da equipe (/team/contratoingressamento) ----------
+  function contractsModule() {
+    const box = document.getElementById('contracts-box');
+    const when = (d) => new Date(d).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+    const slug = (s) => String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40) || 'membro';
+    let items = [];
+
+    function view(c) {
+      const ov = document.createElement('div');
+      ov.className = 'ov';
+      ov.style.overflowY = 'auto';
+      ov.innerHTML = `<div class="card" style="width:min(100%,720px);max-height:92vh;overflow-y:auto">
+        <h3>${esc(c.name)}</h3>
+        <div class="count">Assinado em ${when(c.signed_at)}</div>
+        <img src="/api/admin/contracts/${c.id}/image" alt="Contrato assinado de ${esc(c.name)}" style="width:100%;border:1px solid var(--line);border-radius:10px;background:#fff" />
+        <div class="row" style="justify-content:flex-end">
+          <a class="btn sm" href="/api/admin/contracts/${c.id}/image" download="contrato-${esc(slug(c.name))}-${c.id}.png">Baixar imagem</a>
+          <button class="btn ghost sm" type="button" data-close>Fechar</button>
+        </div>
+      </div>`;
+      app.appendChild(ov);
+      ov.querySelector('[data-close]').addEventListener('click', () => ov.remove());
+      ov.addEventListener('click', (e) => { if (e.target === ov) ov.remove(); });
+    }
+
+    const row = (c) => `<div class="u" data-c="${c.id}">
+      <div class="uh">
+        <span class="av" aria-hidden="true">${esc((c.name || '?').trim().charAt(0).toUpperCase())}</span>
+        <div class="info">
+          <b>${esc(c.name)}</b>
+          <span class="h">${[c.contact, c.role].filter(Boolean).map(esc).join(' · ') || 'Sem @ nem função informados'}</span>
+          <span class="count">Assinado em ${when(c.signed_at)} · #${c.id}</span>
+        </div>
+      </div>
+      <div class="row">
+        <button class="btn sm" type="button" data-view>Ver contrato</button>
+        <button class="btn sm ghost" type="button" data-del style="color:#f4212e;border-color:#f4212e">Excluir</button>
+      </div>
+    </div>`;
+
+    async function load() {
+      const list = box.querySelector('#clist');
+      try {
+        const data = await api('admin/contracts');
+        items = data.contracts || [];
+        box.querySelector('#ccount').textContent = items.length ? `${fmtN(items.length)} contrato(s) assinado(s)` : '';
+        list.innerHTML = items.length ? items.map(row).join('') : '<div class="empty">Nenhum contrato assinado ainda.</div>';
+      } catch (e) {
+        if (e.status === 401) return loginView();
+        list.innerHTML = '<div class="empty">Erro ao carregar.</div>';
+      }
+    }
+
+    function render() {
+      box.innerHTML = `
+        <h2 style="font-size:17px;margin:0 0 4px">Contratos da equipe</h2>
+        <p class="sub" style="margin:0 0 6px">Cada pessoa que assina em <a href="/team/contratoingressamento" target="_blank" rel="noopener" style="text-decoration:underline">/team/contratoingressamento</a> aparece aqui, com a imagem do contrato assinado.</p>
+        <p class="count" id="ccount" style="margin:0 0 6px"></p>
+        <div id="clist"><div class="empty">Carregando...</div></div>`;
+      box.querySelector('#clist').addEventListener('click', (e) => {
+        const holder = e.target.closest('[data-c]');
+        if (!holder) return;
+        const c = items.find((x) => String(x.id) === holder.dataset.c);
+        if (!c) return;
+        if (e.target.closest('[data-view]')) return view(c);
+        if (e.target.closest('[data-del]')) {
+          dialog({
+            title: 'Excluir contrato',
+            text: `Excluir o contrato de <b>${esc(c.name)}</b>? Isso apaga a imagem e não dá para desfazer.`,
+            confirmLabel: 'Excluir',
+            danger: true,
+            onConfirm: async () => { await api(`admin/contracts/${c.id}`, 'DELETE'); toast('Contrato excluído.'); await load(); },
+          });
+        }
+      });
+      load();
+    }
+    return { open: render };
+  }
+
   // ---------- Popup do site (imagem, texto, link e duração) ----------
   function popupModule() {
     const box = document.getElementById('popup-box');
@@ -622,6 +856,8 @@
       <div class="row" role="tablist" aria-label="Seções da administração" style="margin:0 0 14px">
         <button class="btn sm" type="button" role="tab" aria-selected="true" data-panel-tab="registrations">Cadastros</button>
         <button class="btn ghost sm" type="button" role="tab" aria-selected="false" data-panel-tab="chats">Chats</button>
+        <button class="btn ghost sm" type="button" role="tab" aria-selected="false" data-panel-tab="contracts">Contratos</button>
+        <button class="btn ghost sm" type="button" role="tab" aria-selected="false" data-panel-tab="top">Top 10 IA</button>
         <button class="btn ghost sm" type="button" role="tab" aria-selected="false" data-panel-tab="pins">Posts fixados</button>
         <button class="btn ghost sm" type="button" role="tab" aria-selected="false" data-panel-tab="popup">Popup</button>
         <button class="btn ghost sm" type="button" role="tab" aria-selected="false" data-panel-tab="global">Chave Global</button>
@@ -637,6 +873,12 @@
       </section>
       <section id="panel-chats" role="tabpanel" hidden>
         <div class="box" id="chats-box"></div>
+      </section>
+      <section id="panel-contracts" role="tabpanel" hidden>
+        <div class="box" id="contracts-box"></div>
+      </section>
+      <section id="panel-top" role="tabpanel" hidden>
+        <div class="box" id="top-box"></div>
       </section>
       <section id="panel-pins" role="tabpanel" hidden>
         <div class="box" id="pins-box"></div>
@@ -691,13 +933,18 @@
       });
       document.querySelectorAll('[role="tabpanel"]').forEach((panel) => { panel.hidden = panel.id !== `panel-${selected}`; });
       if (selected === 'chats') chats.open(); else chats.stop();
+      if (selected !== 'top') topMod.stop();
+      if (selected === 'top') topMod.open();
       if (selected === 'pins') pins.open();
+      if (selected === 'contracts') contracts.open();
       if (selected === 'popup') popup.open();
       if (selected === 'global') globalKey.open();
       if (selected === 'features') featuresMod.open();
     }));
     const chats = chatsModule();
     const pins = pinsModule();
+    const topMod = topModule();
+    const contracts = contractsModule();
     const popup = popupModule();
     const globalKey = globalModule();
     const featuresMod = featuresModule();

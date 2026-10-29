@@ -42,8 +42,8 @@
           <span>${t('joined', { date: esc(joined) })}</span>
         </div>
         <div class="counts">
-          <span><b id="c-followers">${Number(user.followers).toLocaleString(state.lang === 'pt' ? 'pt-BR' : 'en-US')}</b> ${t('followers')}</span>
-          <span><b>${user.following}</b> ${t('followingLbl')}</span>
+          <span class="count-link" role="button" tabindex="0" data-act="plist" data-val="followers"><b id="c-followers">${Number(user.followers).toLocaleString(state.lang === 'pt' ? 'pt-BR' : 'en-US')}</b> ${t('followers')}</span>
+          <span class="count-link" role="button" tabindex="0" data-act="plist" data-val="following"><b>${user.following}</b> ${t('followingLbl')}</span>
         </div>
       </div>
       <div class="tabs profile-tabs" role="tablist">
@@ -66,6 +66,24 @@
       loadPosts(true);
     };
     actions.ptab = (el) => showTab(el.dataset.val);
+    actions.plist = (el) => {
+      const kind = el.dataset.val === 'following' ? 'following' : 'followers';
+      const sheet = BX.openSheet(t(kind === 'following' ? 'list.following' : 'list.followers'));
+      sheet.body.innerHTML = `<form class="search-form" role="search" onsubmit="return false"><input type="search" id="plist-q" placeholder="${esc(t('list.search'))}" autocomplete="off" /></form><div id="plist-rows" class="plist-rows"></div>`;
+      const rows = sheet.body.querySelector('#plist-rows');
+      let seq = 0;
+      const run = async () => {
+        const n = ++seq;
+        const q = sheet.body.querySelector('#plist-q').value.trim();
+        try {
+          const { users } = await api(`users/${encodeURIComponent(user.username)}/${kind}?q=${encodeURIComponent(q)}`);
+          if (n !== seq) return;
+          rows.innerHTML = users.length ? users.map((u) => userRow({ ...u, is_me: true })).join('') : `<div class="empty">${esc(t('list.empty'))}</div>`;
+        } catch (e) { if (n === seq) rows.innerHTML = `<div class="empty">${esc(errMsg(e))}</div>`; }
+      };
+      sheet.body.querySelector('#plist-q').addEventListener('input', debounce(run, 200));
+      run();
+    };
     showTab('posts');
   }
   const seg = location.pathname.split('/').filter(Boolean);

@@ -1,3 +1,16 @@
+(() => {
+  // Logo quebrada (arquivo faltando ou cache antigo): tenta alternativas antes de mostrar o texto.
+  const chain = ['/symbol.png', '/icon.png', '/logo.png'];
+  window.addEventListener('error', (ev) => {
+    const img = ev.target;
+    if (!img || img.tagName !== 'IMG') return;
+    const cur = (img.getAttribute('src') || '').split('?')[0];
+    const i = chain.indexOf(cur);
+    if (i === -1) return;
+    if (i + 1 < chain.length) img.src = chain[i + 1] + '?v=2';
+    else { img.style.visibility = 'hidden'; img.removeAttribute('alt'); }
+  }, true);
+})();
 /* Bloxter — aplicativo (PWA).
    - registra o service worker (/sw.js)
    - controla a instalação (botão nativo no Android/computador, passo a passo no iPhone)
@@ -160,7 +173,7 @@
   }
 
   /* ---------- Convite da primeira visita ---------- */
-  const SKIP = /^\/(administracao|verificacao|gerenciador|maintenance|developers|oauth|oculto|app|offline|blog)/;
+  const SKIP = /^\/(administracao|team|verificacao|gerenciador|maintenance|developers|oauth|oculto|app|offline|blog)/;
   let sheet = null;
 
   function injectStyle() {

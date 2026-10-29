@@ -48,6 +48,18 @@
       signup: 'Criar conta',
       login: 'Entrar',
       logout: 'Sair',
+      'err.invalid_music': 'Cole um link válido de vídeo do YouTube.',
+      'err.invalid_video': 'Envie um único vídeo MP4, WebM ou MOV, sem misturar com fotos.',
+      'err.video_too_large': 'O vídeo precisa ter até 3 MB.',
+      'acct.title': 'Contas',
+      'acct.addExisting': 'Adicionar conta existente',
+      'acct.create': 'Criar nova conta',
+      'acct.remove': 'Remover conta da lista',
+      'acct.logout': 'Sair de @{u}',
+      'list.followers': 'Seguidores',
+      'list.following': 'Seguindo',
+      'list.search': 'Buscar contas',
+      'list.empty': 'Nenhuma conta encontrada.',
       or: 'ou',
       'nav.home': 'Home',
       'nav.search': 'Buscar',
@@ -233,6 +245,18 @@
       signup: 'Create account',
       login: 'Log in',
       logout: 'Log out',
+      'err.invalid_music': 'Paste a valid YouTube video link.',
+      'err.invalid_video': 'Upload a single MP4, WebM or MOV video, without mixing it with photos.',
+      'err.video_too_large': 'The video must be up to 3 MB.',
+      'acct.title': 'Accounts',
+      'acct.addExisting': 'Add existing account',
+      'acct.create': 'Create new account',
+      'acct.remove': 'Remove account from list',
+      'acct.logout': 'Log out @{u}',
+      'list.followers': 'Followers',
+      'list.following': 'Following',
+      'list.search': 'Search accounts',
+      'list.empty': 'No accounts found.',
       or: 'or',
       'nav.home': 'Home',
       'nav.search': 'Search',
@@ -989,7 +1013,9 @@
     if (state.shell === 'app' && $('#view') && $('.side')) {
       $('.side .me-card').setAttribute('href', mine);
       $('.side [data-nav="profile"]').setAttribute('href', mine);
-      $('.tabbar [data-nav="profile"]').setAttribute('href', mine);
+      const tp = $('.tabbar [data-nav="profile"]');
+      tp.setAttribute('href', mine);
+      tp.innerHTML = avatar(state.me, 'tab-av');
       refreshShellText();
       return;
     }
@@ -1032,7 +1058,7 @@
         <a href="/home" data-nav="home" aria-label="Home">${ICON.home}</a>
         <a href="/search" data-nav="search" aria-label="Search">${ICON.search}</a>
         <button type="button" data-act="menu" data-nav="menu" aria-label="${esc(t('nav.menu'))}" aria-haspopup="true" aria-expanded="false">${ICON.menu}<span class="badge" data-badge-menu></span></button>
-        <a href="${esc(mine)}" data-nav="profile" aria-label="Profile">${ICON.user}</a>
+        <a href="${esc(mine)}" data-nav="profile" aria-label="Profile" draggable="false">${avatar(state.me, 'tab-av')}</a>
         <a href="/settings" data-nav="settings" aria-label="Settings">${ICON.cog}</a>
       </nav>
       <div class="menu-pop" id="menu-pop" hidden role="menu">
@@ -1042,6 +1068,82 @@
     refreshShellText();
     loadSuggestions();
     updateBadge();
+    setupAccountSwitcher();
+  }
+
+  // ---------- Seletor de contas (ícone de perfil do menu inferior) ----------
+  // 1 toque: abre o perfil (com 280 ms de espera só se houver 2+ contas, para distinguir do toque duplo).
+  // 2 toques: próxima conta. Segurar: menu de contas.
+  let accounts = [];
+  async function loadAccounts() {
+    try { accounts = (await api('auth/accounts')).accounts || []; } catch { /* mantém a lista anterior */ }
+  }
+  async function switchAccount(id) {
+    try { await api('auth/switch', { method: 'POST', body: { id } }); location.reload(); } catch (e) { toast(errMsg(e)); }
+  }
+  function closeAccountMenu() { document.getElementById('acct-pop')?.remove(); }
+  async function openAccountMenu() {
+    closeAccountMenu();
+    await loadAccounts();
+    const pop = document.createElement('div');
+    pop.id = 'acct-pop';
+    pop.className = 'acct-pop';
+    pop.setAttribute('role', 'menu');
+    pop.innerHTML = `<div class="acct-head">${esc(t('acct.title'))}</div>`
+      + accounts.map((a) => `<div class="acct-row ${a.current ? 'on' : ''}" role="menuitem">
+          <button type="button" class="acct-pick" data-acct-id="${a.id}">${avatar(a, 's32')}<span class="acct-meta"><b>${esc(a.name)}</b><small>@${esc(a.username)}</small></span>${a.current ? '<span class="acct-check" aria-hidden="true">✓</span>' : ''}</button>
+          ${a.current ? '' : `<button type="button" class="acct-x" data-acct-rm="${a.id}" aria-label="${esc(t('acct.remove'))}" title="${esc(t('acct.remove'))}">✕</button>`}
+        </div>`).join('')
+      + `<a class="acct-link" href="/login?add=1" role="menuitem">${esc(t('acct.addExisting'))}</a>
+         <a class="acct-link" href="/signup?add=1" role="menuitem">${esc(t('acct.create'))}</a>
+         <button type="button" class="acct-link acct-out" data-act="logout" role="menuitem">${esc(t('acct.logout', { u: state.me.username }))}</button>`;
+    document.body.appendChild(pop);
+    pop.addEventListener('click', async (e) => {
+      const rm = e.target.closest('[data-acct-rm]');
+      if (rm) {
+        try { await api('auth/remove-account', { method: 'POST', body: { id: Number(rm.dataset.acctRm) } }); } catch (err) { toast(errMsg(err)); }
+        return openAccountMenu();
+      }
+      const pick = e.target.closest('[data-acct-id]');
+      if (!pick) return;
+      const id = Number(pick.dataset.acctId);
+      if (id === state.me.id) return closeAccountMenu();
+      switchAccount(id);
+    });
+    setTimeout(() => {
+      const off = (e) => { if (!pop.contains(e.target)) { closeAccountMenu(); document.removeEventListener('pointerdown', off, true); } };
+      document.addEventListener('pointerdown', off, true);
+    }, 0);
+  }
+  function setupAccountSwitcher() {
+    const btn = $('.tabbar [data-nav="profile"]');
+    if (!btn || btn.dataset.acctReady) return;
+    btn.dataset.acctReady = '1';
+    loadAccounts();
+    let timer = null; let pressed = false; let clickTimer = null; let sx = 0; let sy = 0;
+    const cancelPress = () => { clearTimeout(timer); timer = null; };
+    btn.addEventListener('pointerdown', (e) => {
+      pressed = false; sx = e.clientX; sy = e.clientY;
+      cancelPress();
+      timer = setTimeout(() => { pressed = true; timer = null; if (navigator.vibrate) { try { navigator.vibrate(15); } catch { /* ignore */ } } openAccountMenu(); }, 450);
+    });
+    btn.addEventListener('pointermove', (e) => { if (timer && Math.hypot(e.clientX - sx, e.clientY - sy) > 10) cancelPress(); });
+    ['pointerup', 'pointercancel', 'pointerleave'].forEach((n) => btn.addEventListener(n, cancelPress));
+    btn.addEventListener('contextmenu', (e) => e.preventDefault());
+    btn.addEventListener('dragstart', (e) => e.preventDefault());
+    btn.addEventListener('click', (e) => {
+      e.preventDefault();
+      if (pressed) { pressed = false; return; } // soltou depois de segurar: não abre o perfil
+      if (accounts.length < 2) { go(btn.getAttribute('href')); return; }
+      if (clickTimer) { // segundo toque rápido: próxima conta
+        clearTimeout(clickTimer); clickTimer = null;
+        const i = accounts.findIndex((a) => a.current);
+        const next = accounts[(i + 1) % accounts.length];
+        if (next && next.id !== state.me.id) switchAccount(next.id);
+        return;
+      }
+      clickTimer = setTimeout(() => { clickTimer = null; go(btn.getAttribute('href')); }, 280);
+    });
   }
 
   function refreshShellText() {
@@ -1146,6 +1248,132 @@
     return `<div class="post-imgs n${list.length}">${list.map((src, i) => `<button type="button" class="post-img" data-act="viewimg" data-src="${esc(src)}" data-i="${i}" aria-label="Ver foto ${i + 1}"><img src="${esc(src)}" alt="" loading="lazy" decoding="async" /></button>`).join('')}</div>`;
   }
 
+  function videosHTML(videos) {
+    const v = Array.isArray(videos) ? videos[0] : '';
+    return v ? `<div class="post-video"><video src="${esc(v)}" controls playsinline preload="metadata"></video></div>` : '';
+  }
+
+  // ---------- Música do post (YouTube) ----------
+  // Mudo e volume são globais: mexer em um post vale para todos.
+  const music = { muted: store.get('bx_music_mute') === '1', vol: Math.min(100, Math.max(0, Number(store.get('bx_music_vol') ?? 70) || 0)), player: null, bar: null, api: null, playing: false };
+  // Valida link do YouTube no navegador (mesma regra do servidor) e devolve o ID de 11 caracteres.
+  function ytId(input) {
+    const raw = String(input || '').trim();
+    if (!raw || raw.length > 300) return '';
+    let u;
+    try { u = new URL(/^https?:\/\//i.test(raw) ? raw : `https://${raw}`); } catch { return ''; }
+    const host = u.hostname.replace(/^(www\.|m\.|music\.)/, '');
+    let id = '';
+    if (host === 'youtu.be') id = u.pathname.slice(1).split('/')[0];
+    else if (host === 'youtube.com') {
+      const m = u.pathname.match(/^\/(?:shorts|embed|live|v)\/([^/]+)/);
+      id = m ? m[1] : (u.pathname === '/watch' ? u.searchParams.get('v') || '' : '');
+    }
+    return /^[A-Za-z0-9_-]{11}$/.test(id) ? id : '';
+  }
+  // Início em segundos vindo do link (?t=1m5s, ?t=65, ?start=65).
+  function ytStart(input) {
+    try {
+      const raw = String(input || '').trim(); const u = new URL(/^https?:\/\//i.test(raw) ? raw : `https://${raw}`);
+      const v = u.searchParams.get('t') || u.searchParams.get('start') || '';
+      const m = v.match(/^(?:(\d+)h)?(?:(\d+)m)?(?:(\d+)s?)?$/);
+      return m ? (Number(m[1] || 0) * 3600 + Number(m[2] || 0) * 60 + Number(m[3] || 0)) : 0;
+    } catch { return 0; }
+  }
+  // Para a música e libera o player (usado ao trocar de página ou remover a prévia).
+  function stopMusic(only) {
+    if (only && only !== music.bar) return;
+    if (music.player) { try { music.player.destroy(); } catch { /* ignore */ } music.player = null; }
+    if (music.bar) { const h = music.bar.querySelector('.pm-host'); if (h) h.innerHTML = ''; }
+    music.bar = null; music.playing = false; syncMusicUI();
+  }
+  function pauseAllVideos() { document.querySelectorAll('video').forEach((v) => { if (!v.paused) { try { v.pause(); } catch { /* ignore */ } } }); }
+  // Vídeo tocando → pausa a música (nunca duas fontes de áudio juntas).
+  document.addEventListener('play', (e) => {
+    if (e.target && e.target.tagName === 'VIDEO' && music.player && music.playing) { try { music.player.pauseVideo(); } catch { /* ignore */ } }
+  }, true);
+  // Se o post com música sair da tela (troca de rota/recarga do feed), o player é encerrado.
+  setInterval(() => { if (music.bar && !document.body.contains(music.bar)) stopMusic(); }, 1500);
+  const SPK_ON = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 5 6 9H3v6h3l5 4z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/><path d="M18.5 5.5a9 9 0 0 1 0 13"/></svg>';
+  const SPK_OFF = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 5 6 9H3v6h3l5 4z"/><path d="m22 9-6 6"/><path d="m16 9 6 6"/></svg>';
+  const PLAY = '<svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" aria-hidden="true"><path d="M7 4v16l13-8z"/></svg>';
+  const PAUSE = '<svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" aria-hidden="true"><path d="M6 4h4v16H6zM14 4h4v16h-4z"/></svg>';
+
+  // "1:05", "65" ou "1m5s" → segundos
+  function parseTime(v) {
+    v = String(v || '').trim(); if (!v) return 0;
+    if (/^\d+$/.test(v)) return Number(v);
+    let m = v.match(/^(?:(\d+):)?(\d{1,2}):(\d{2})$/); if (m) return Number(m[1] || 0) * 3600 + Number(m[2]) * 60 + Number(m[3]);
+    m = v.match(/^(?:(\d+)h)?(?:(\d+)m)?(?:(\d+)s)?$/); return m ? Number(m[1] || 0) * 3600 + Number(m[2] || 0) * 60 + Number(m[3] || 0) : 0;
+  }
+  function fmtTime(sec) { sec = Math.max(0, Math.floor(Number(sec) || 0)); return `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, '0')}`; }
+  // Botão redondo escuro com alto-falante (estilo Instagram). O volume aparece ao passar o mouse/focar.
+  function musicHTML(m, preview) {
+    if (!m || !m.id) return '';
+    const title = m.title || 'YouTube';
+    const start = Number(m.start) || 0;
+    return `<div class="post-music${preview ? ' pm-preview' : ''}" data-music="${esc(m.id)}" data-start="${start}">
+      <button type="button" class="pm-btn" data-act="musicbtn" aria-label="Tocar música">${music.muted ? SPK_OFF : SPK_ON}</button>
+      <button type="button" class="pm-title" data-act="musicplay" title="${esc(title)}">♪ ${esc(title)}${start ? ` · ${fmtTime(start)}` : ''}</button>
+      <input type="range" class="pm-vol" min="0" max="100" value="${music.vol}" aria-label="Volume da música" />
+      <div class="pm-host"></div>
+    </div>`;
+  }
+  function syncMusicUI() {
+    document.querySelectorAll('.post-music').forEach((bar) => {
+      bar.querySelector('.pm-btn').innerHTML = music.muted ? SPK_OFF : SPK_ON;
+      bar.classList.toggle('pm-on', bar === music.bar && music.playing);
+      const r = bar.querySelector('.pm-vol'); if (r) r.value = String(music.vol);
+    });
+  }
+  function applyMusicAudio() {
+    const p = music.player;
+    if (!p || !p.setVolume) return;
+    try { p.setVolume(music.vol); if (music.muted || music.vol === 0) p.mute(); else p.unMute(); } catch { /* player ainda carregando */ }
+  }
+  function loadYT() {
+    if (music.api) return music.api;
+    music.api = new Promise((ok) => {
+      if (window.YT && window.YT.Player) return ok(window.YT);
+      const prev = window.onYouTubeIframeAPIReady;
+      window.onYouTubeIframeAPIReady = () => { if (prev) prev(); ok(window.YT); };
+      const s = document.createElement('script'); s.src = 'https://www.youtube.com/iframe_api'; document.head.appendChild(s);
+    });
+    return music.api;
+  }
+  async function musicPlay(bar) {
+    if (bar === music.bar && music.player) { // mesmo post: pausa / retoma
+      try { if (music.playing) music.player.pauseVideo(); else { pauseAllVideos(); music.player.playVideo(); } } catch { /* ignore */ }
+      return;
+    }
+    pauseAllVideos();
+    if (music.player) { try { music.player.destroy(); } catch { /* ignore */ } music.player = null; }
+    const old = music.bar; music.bar = bar; music.playing = false; syncMusicUI();
+    if (old && old !== bar) { const h = old.querySelector('.pm-host'); if (h) h.innerHTML = ''; }
+    bar.querySelector('.pm-host').innerHTML = '<div></div>';
+    const YT = await loadYT();
+    if (music.bar !== bar) return;
+    music.player = new YT.Player(bar.querySelector('.pm-host').firstChild, {
+      width: '200', height: '200', videoId: bar.dataset.music,
+      playerVars: { start: Number(bar.dataset.start) || 0, autoplay: 1, controls: 0, playsinline: 1, rel: 0, modestbranding: 1 },
+      events: {
+        onReady: () => { applyMusicAudio(); try { music.player.playVideo(); } catch { /* ignore */ } },
+        onStateChange: (e) => {
+          music.playing = e.data === 1 || e.data === 3;
+          if (e.data === 0) { music.playing = false; try { music.player.seekTo(0); music.player.pauseVideo(); } catch { /* ignore */ } }
+          syncMusicUI();
+        },
+      },
+    });
+  }
+  document.addEventListener('input', (e) => {
+    const r = e.target.closest && e.target.closest('.pm-vol');
+    if (!r) return;
+    music.vol = Number(r.value); music.muted = music.vol === 0;
+    store.set('bx_music_vol', String(music.vol)); store.set('bx_music_mute', music.muted ? '1' : '0');
+    applyMusicAudio(); syncMusicUI();
+  });
+
   function postHTML(p) {
     postCache.set(p.id, p);
     return `<article class="post ${p.sponsored ? 'post-sponsored' : ''} ${p.pinned ? 'post-pinned' : ''}" data-post="${p.id}">
@@ -1161,7 +1389,7 @@
           ${!p.mine && p.user && !p.user.following && document.body.dataset.page !== 'profile' ? `<button type="button" class="post-follow" data-act="follow" data-user="${esc(p.user.username)}" data-post="${p.id}">${esc(t('follow'))}</button>` : ''}
         </div>
         ${p.body ? `<div class="text">${fmt(p.body, { pageup: !!(p.user && p.user.pageup) })}</div>` : ''}
-        ${imagesHTML(p.images)}
+        ${imagesHTML(p.images)}${videosHTML(p.videos)}${musicHTML(p.music)}
         <div class="acts">
           ${state.features.comments ? `<button class="act" data-act="comment" data-id="${p.id}" aria-label="${esc(t('comment.aria'))}">${ICON.comment}<span>${p.comments || ''}</span></button>` : ''}
           ${p.mine
@@ -1286,7 +1514,7 @@
     const sheet = openSheet(t('comment.title'));
     sheet.body.innerHTML = `
       <div class="cm-post">${avatar(p.user)}<div><div class="top"><b>${esc(p.user.name)}</b>${badges(p.user)} <span class="u">@${esc(p.user.username)}</span></div>
-        ${p.body ? `<div class="text">${fmt(p.body, { pageup: !!p.user.pageup })}</div>` : ''}${imagesHTML(p.images)}</div></div>
+        ${p.body ? `<div class="text">${fmt(p.body, { pageup: !!p.user.pageup })}</div>` : ''}${imagesHTML(p.images)}${videosHTML(p.videos)}${musicHTML(p.music)}</div></div>
       <div class="cm-list" id="cm-list"><div class="loading">${t('loading')}</div></div>
       <div class="cm-more"></div>
       <form class="cm-form">
@@ -1707,6 +1935,22 @@
       el.setAttribute('aria-expanded', String(open));
     },
     viewimg(el) { openImageViewer(el.dataset.src); },
+    musicplay(el) { musicPlay(el.closest('.post-music')); },
+    musicbtn(el) { // 1º toque: toca e liga o som; depois: muta/desmuta (global)
+      const bar = el.closest('.post-music');
+      if (bar !== music.bar || !music.playing) { if (music.muted) { music.muted = false; if (!music.vol) music.vol = 70; store.set('bx_music_mute', '0'); store.set('bx_music_vol', String(music.vol)); } musicPlay(bar); return; }
+      actions.musicmute();
+    },
+    musicmute() {
+      music.muted = !music.muted;
+      if (!music.muted && music.vol === 0) music.vol = 70;
+      store.set('bx_music_mute', music.muted ? '1' : '0'); store.set('bx_music_vol', String(music.vol));
+      applyMusicAudio(); syncMusicUI();
+    },
+    musictoggle() {
+      const i = $('#composer-music'); if (!i) return;
+      i.hidden = !i.hidden; if (!i.hidden) i.focus(); else i.value = '';
+    },
     more() { loadPosts(false); },
     tab(el) {
       state.feedTab = el.dataset.val;
@@ -2010,7 +2254,7 @@
       go(`/login?next=${encodeURIComponent(location.pathname + location.search)}`, true);
       return null;
     }
-    if (auth === 'guest' && state.me) {
+    if (auth === 'guest' && state.me && new URLSearchParams(location.search).get('add') !== '1') {
       go(safeNext() || '/home', true);
       return null;
     }
@@ -2039,6 +2283,7 @@
     accountPath, toggles, langToggle, setTitle, go, safeNext, appShell, publicShell, refreshShellText,
     setActiveNav, updateBadge, pollUnread, badges, followLabel, userRow, usernameChecker, postHTML, loadMoreBtn, feed,
     loadPosts, setFeed, forms, actions, openSheet, openPost, openImageViewer, imagesHTML, subscribePush, applyLang, applyTheme, openProfileDetails, openOnboarding, init,
+    music: { seek: (bar, sec) => { if (bar === music.bar && music.player) { try { music.player.seekTo(sec, true); } catch { /* ignore */ } } }, html: musicHTML, ytId, ytStart, parseTime, fmtTime, stop: stopMusic, sync: syncMusicUI },
   };
 
 })();

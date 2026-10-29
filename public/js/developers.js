@@ -45,6 +45,54 @@
     $('#app-create').addEventListener('submit', createApp);
     $('#dev-apps').addEventListener('click', appAction);
     loadApps();
+    adminApiCard();
+  }
+
+
+  // ---------- API de administração (bx_admin_...) ----------
+  function adminApiCard() {
+    const shell = $('.dev-shell');
+    if (!shell || $('#dev-admin-api')) return;
+    const base = location.origin;
+    const sec = document.createElement('section');
+    sec.id = 'dev-admin-api';
+    sec.className = 'dev-card dev-doc';
+    sec.style.marginTop = '18px';
+    sec.innerHTML = `<h2>API de administração</h2>
+      <p>Faça tudo pelo código: banir, desbanir, apagar stories, posts, comentários e contas. Gere uma chave com a <b>senha do painel admin</b> e envie no header <code>X-Admin-Key</code>. A chave aparece uma única vez.</p>
+      <div class="dev-bot-create"><input class="dev-bot-name" id="adm-name" maxlength="60" placeholder="Nome da chave (ex.: bot de moderação)"><input class="dev-bot-name" id="adm-pass" type="password" autocomplete="off" placeholder="Senha do painel admin"><button class="dev-btn small" type="button" id="adm-create">Gerar chave admin</button></div>
+      <div class="dev-doc-grid">
+        <div class="dev-doc-item"><h3>Banir / desbanir</h3><code class="dev-code">POST   ${base}/api/admin/users/:username/ban   {"reason":"motivo"}
+DELETE ${base}/api/admin/users/:username/ban
+POST   ${base}/api/admin/users/:username/delete {"confirm":"username"}</code></div>
+        <div class="dev-doc-item"><h3>Stories</h3><code class="dev-code">GET    ${base}/api/admin/stories?username=&limit=30&before=
+DELETE ${base}/api/admin/stories/:id
+DELETE ${base}/api/admin/users/:username/stories   (apaga todos)</code></div>
+        <div class="dev-doc-item"><h3>Posts e comentários</h3><code class="dev-code">GET    ${base}/api/admin/posts?username=&limit=30&before=
+DELETE ${base}/api/admin/posts/:id
+DELETE ${base}/api/admin/comments/:id</code></div>
+        <div class="dev-doc-item"><h3>Usuários</h3><code class="dev-code">GET    ${base}/api/admin/users?q=texto
+PATCH  ${base}/api/admin/users/:username  {"verified":true,"add_followers":10}</code></div>
+      </div>
+      <code class="dev-code">curl -X DELETE ${base}/api/admin/stories/123 \
+  -H "X-Admin-Key: bx_admin_..."
+
+curl -X POST ${base}/api/admin/users/fulano/ban \
+  -H "X-Admin-Key: bx_admin_..." -H "Content-Type: application/json" \
+  -d '{"reason":"spam"}'</code>
+      <p class="dev-hint" style="margin-top:10px!important">Guarde a chave em segredo: ela tem poder total de moderação. Para revogar, use o painel admin (sessão) em <code>DELETE /api/admin/api-keys/:prefixo</code>.</p>`;
+    shell.appendChild(sec);
+    $('#adm-create', sec).addEventListener('click', async (ev) => {
+      const btn = ev.currentTarget; btn.disabled = true;
+      try {
+        const data = await api('admin/api-keys', 'POST', { name: $('#adm-name', sec).value.trim(), password: $('#adm-pass', sec).value });
+        $('#adm-pass', sec).value = '';
+        showSecret({ name: 'API de administração' }, data.api_key, 'Chave admin criada');
+      } catch (error) {
+        const m = { wrong_password: 'Senha do painel incorreta.', admin_key_limit: 'Limite de 10 chaves admin atingido.' };
+        showToast(m[error.code] || 'Não foi possível gerar a chave.');
+      } finally { btn.disabled = false; }
+    });
   }
 
   async function loadApps() {
