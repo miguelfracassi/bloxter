@@ -1,0 +1,3 @@
+Parte 3 - imagens do Herelew.
+Copie TODO o conteudo da pasta "imagens-copiar-para-public" para dentro de herelew/public/
+(as imagens soltas ficam ao lado dos .html e a pasta "img" fica em herelew/public/img).
