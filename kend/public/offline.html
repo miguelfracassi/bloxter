@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="pt-BR" data-theme="dark">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="robots" content="noindex" />
+  <meta name="theme-color" content="#000000" />
+  <title>Sem conexão · Bloxter</title>
+  <link rel="icon" type="image/png" href="/icon.png?v=202610287732" />
+  <style>
+    :root{--bg:#000;--fg:#fff;--fg2:#9a9a9a;--line:#222}
+    :root[data-theme=light]{--bg:#fff;--fg:#000;--fg2:#6b6b6b;--line:#e4e4e4}
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{min-height:100vh;min-height:100dvh;display:grid;place-items:center;padding:24px;background:var(--bg);color:var(--fg);font-family:'Poppins',system-ui,-apple-system,'Segoe UI',sans-serif;text-align:center}
+    main{max-width:360px;display:grid;gap:14px;justify-items:center}
+    svg{width:46px;height:46px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+    h1{font-size:21px;font-weight:600}
+    p{color:var(--fg2);font-size:14px;line-height:1.55}
+    button{margin-top:6px;border:0;border-radius:999px;padding:12px 28px;background:var(--fg);color:var(--bg);font:600 14px inherit;font-family:inherit;cursor:pointer}
+    button:active{transform:scale(.98)}
+  </style>
+  <script>
+    (function () {
+      try {
+        var th = localStorage.getItem('bx_theme');
+        document.documentElement.setAttribute('data-theme', th === 'light' ? 'light' : 'dark');
+        var lg = localStorage.getItem('bx_lang');
+        if (lg !== 'pt' && lg !== 'en') lg = (navigator.language || 'pt').toLowerCase().indexOf('pt') === 0 ? 'pt' : 'en';
+        if (lg === 'en') {
+          document.documentElement.lang = 'en';
+          document.addEventListener('DOMContentLoaded', function () {
+            document.title = 'Offline · Bloxter';
+            document.getElementById('t').textContent = 'You are offline';
+            document.getElementById('d').textContent = 'Check your connection. As soon as it is back, Bloxter loads again.';
+            document.getElementById('b').textContent = 'Try again';
+          });
+        }
+      } catch (e) {}
+    })();
+  </script>
+</head>
+<body>
+  <main>
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 8.8a15 15 0 0 1 20 0"/><path d="M5.5 12.4a10 10 0 0 1 13 0"/><path d="M9 16a5 5 0 0 1 6 0"/><path d="M12 19.5h.01"/><path d="M3 3l18 18"/></svg>
+    <h1 id="t">Você está sem conexão</h1>
+    <p id="d">Verifique sua internet. Assim que ela voltar, o Bloxter carrega de novo.</p>
+    <button id="b" type="button" onclick="location.reload()">Tentar de novo</button>
+  </main>
+  <script>window.addEventListener('online', function () { location.reload(); });</script>
+</body>
+</html>
