@@ -216,6 +216,12 @@ module.exports = async (req, res) => {
     if (a === 'health') return require('./health')(req, res);
     await ensureSchema();
     const sql = getSql();
+    // Busca "site aberto" já agora, em paralelo com as outras consultas iniciais (usado mais abaixo).
+    let accessPromise = null;
+    if (!accessCache || Date.now() > accessCache.until) {
+      accessPromise = sql`SELECT setting_value FROM site_settings WHERE setting_key = 'access_open'`;
+      accessPromise.catch(() => {});
+    }
     let me = getUserId(req);
     // Conta excluída ou banida: a sessão deixa de valer. Rotas que não dependem de login
     // (admin, avatar, status do site, popup, imagens, bots, OAuth) não pagam essa consulta.
@@ -451,7 +457,7 @@ module.exports = async (req, res) => {
           ORDER BY p.id DESC LIMIT ${limit}`;
         const postIds = rows.map((r) => r.id);
         const mediaRows = postIds.length ? await sql`
-          SELECT id, post_id, (left(data, 11) = 'data:video/') AS is_video
+          SELECT id, post_id, (substr(data, 1, 11) = 'data:video/') AS is_video
           FROM post_images WHERE post_id = ANY(${postIds}::int[]) ORDER BY pos, id` : [];
         const mediaByPost = new Map();
         const origin = siteOrigin();
@@ -529,7 +535,7 @@ module.exports = async (req, res) => {
           ORDER BY rp.id DESC LIMIT ${limit}`;
         const postIds = [...new Set(rows.map((r) => r.id))];
         const mediaRows = postIds.length ? await sql`
-          SELECT id, post_id, (left(data, 11) = 'data:video/') AS is_video
+          SELECT id, post_id, (substr(data, 1, 11) = 'data:video/') AS is_video
           FROM post_images WHERE post_id = ANY(${postIds}::int[]) ORDER BY pos, id` : [];
         const mediaByPost = new Map();
         const origin = siteOrigin();
@@ -562,7 +568,7 @@ module.exports = async (req, res) => {
           ORDER BY cm.id DESC LIMIT ${limit}`;
         const postIds = [...new Set(rows.map((r) => r.post_id))];
         const mediaRows = postIds.length ? await sql`
-          SELECT id, post_id, (left(data, 11) = 'data:video/') AS is_video
+          SELECT id, post_id, (substr(data, 1, 11) = 'data:video/') AS is_video
           FROM post_images WHERE post_id = ANY(${postIds}::int[]) ORDER BY pos, id` : [];
         const mediaByPost = new Map();
         const origin = siteOrigin();
@@ -651,10 +657,10 @@ module.exports = async (req, res) => {
     }
 
     if (a === 'site' && b === 'status' && method === 'GET') {
-      const settings = await sql`SELECT setting_key, setting_value FROM site_settings WHERE setting_key IN ('access_open','liquid_glass_prompt_enabled','maintenance_enabled','maintenance_responsible','maintenance_reason','maintenance_updates')`;
+      const [settings, siteFeatures] = await Promise.all([sql`SELECT setting_key, setting_value FROM site_settings WHERE setting_key IN ('access_open','liquid_glass_prompt_enabled','maintenance_enabled','maintenance_responsible','maintenance_reason','maintenance_updates')`, featuresFor()]);
       const values = Object.fromEntries(settings.map((row) => [row.setting_key, row.setting_value]));
       res.setHeader('Cache-Control', 'no-store');
-      return send({ features: await featuresFor(), access_open: values.access_open === 'true', liquid_glass_prompt: values.liquid_glass_prompt_enabled === 'true', admin_bypass: isAdminPreview(req), opening: '25/10 às 20:00', maintenance: { enabled: values.maintenance_enabled === 'true', responsible: values.maintenance_responsible || 'Equipe Bloxter', reason: values.maintenance_reason || 'Atualizações', updates: values.maintenance_updates || '' } });
+      return send({ features: siteFeatures, access_open: values.access_open === 'true', liquid_glass_prompt: values.liquid_glass_prompt_enabled === 'true', admin_bypass: isAdminPreview(req), opening: '25/10 às 20:00', maintenance: { enabled: values.maintenance_enabled === 'true', responsible: values.maintenance_responsible || 'Equipe Bloxter', reason: values.maintenance_reason || 'Atualizações', updates: values.maintenance_updates || '' } });
     }
 
     // Comentário -> JSON. "author_liked": o dono do post curtiu (aparece a foto dele + coração).
@@ -701,7 +707,7 @@ module.exports = async (req, res) => {
         sql`SELECT post_id, count(*)::int AS n FROM comments WHERE post_id = ANY(${ids}::int[]) GROUP BY post_id`,
         sql`SELECT post_id, count(*)::int AS n FROM reposts WHERE post_id = ANY(${ids}::int[]) GROUP BY post_id`,
         me ? sql`SELECT post_id FROM reposts WHERE user_id = ${me} AND post_id = ANY(${ids}::int[])` : [],
-        sql`SELECT id, post_id, (left(data, 11) = 'data:video/') AS is_video FROM post_images WHERE post_id = ANY(${ids}::int[]) ORDER BY pos, id`,
+        sql`SELECT id, post_id, (substr(data, 1, 11) = 'data:video/') AS is_video FROM post_images WHERE post_id = ANY(${ids}::int[]) ORDER BY pos, id`,
         sql`SELECT id, music, music_title, music_start FROM posts WHERE id = ANY(${ids}::int[]) AND music <> ''`,
         me ? sql`SELECT followee_id FROM follows WHERE follower_id = ${me} AND followee_id = ANY(${uids}::int[])` : [],
         sql`SELECT pc.post_id, u.id AS uid, u.username, u.name, u.avatar_v, u.verified, u.is_ai, u.pageup
@@ -1828,7 +1834,7 @@ module.exports = async (req, res) => {
 
     // "Site aberto" quase nunca muda: guarda por 10 s em memória em vez de consultar o banco em toda requisição.
     if (!accessCache || Date.now() > accessCache.until) {
-      const [accessSetting] = await sql`SELECT setting_value FROM site_settings WHERE setting_key = 'access_open'`;
+      const [accessSetting] = await (accessPromise || sql`SELECT setting_value FROM site_settings WHERE setting_key = 'access_open'`);
       accessCache = { open: accessSetting ? accessSetting.setting_value === 'true' : false, until: Date.now() + 10000 };
     }
     const accessOpen = accessCache.open;
@@ -2293,15 +2299,14 @@ module.exports = async (req, res) => {
       need();
       const tab = q.get('tab') === 'following' ? 'following' : 'all';
       const before = parseInt(q.get('before'), 10) || null;
-      const pinnedRows = before == null ? await sql`
+      const [pinnedRows, promotedRows] = await Promise.all([before == null ? sql`
         SELECT p.id, p.body, p.created_at, u.id AS uid, u.username, u.name, u.avatar_v, u.verified, u.is_ai, u.pageup,
           (SELECT count(*) FROM likes l WHERE l.post_id = p.id)::int AS likes,
           EXISTS (SELECT 1 FROM likes l WHERE l.post_id = p.id AND l.user_id = ${me}) AS liked,
           false AS sponsored, true AS pinned
         FROM posts p JOIN users u ON u.id = p.user_id
         JOIN pinned_posts pn ON pn.post_id = p.id
-        ORDER BY pn.created_at DESC LIMIT 5` : [];
-      const promotedRows = before == null ? await sql`
+        ORDER BY pn.created_at DESC LIMIT 5` : [], before == null ? sql`
         SELECT p.id, p.body, p.created_at, u.id AS uid, u.username, u.name, u.avatar_v, u.verified, u.is_ai, u.pageup,
           (SELECT count(*) FROM likes l WHERE l.post_id = p.id)::int AS likes,
           EXISTS (SELECT 1 FROM likes l WHERE l.post_id = p.id AND l.user_id = ${me}) AS liked,
@@ -2309,7 +2314,7 @@ module.exports = async (req, res) => {
         FROM posts p JOIN users u ON u.id = p.user_id
         JOIN promoted_posts pp ON pp.post_id = p.id
         WHERE NOT EXISTS (SELECT 1 FROM pinned_posts pn WHERE pn.post_id = p.id)
-        ORDER BY pp.created_at DESC LIMIT 10` : [];
+        ORDER BY pp.created_at DESC LIMIT 10` : []]);
       const rows = await sql`
         SELECT p.id, p.body, p.created_at, u.id AS uid, u.username, u.name, u.avatar_v, u.verified, u.is_ai, u.pageup,
           (SELECT count(*) FROM likes l WHERE l.post_id = p.id)::int AS likes,
@@ -2322,7 +2327,8 @@ module.exports = async (req, res) => {
                OR p.user_id IN (SELECT followee_id FROM follows WHERE follower_id = ${me}))
           AND (${before}::int IS NULL OR p.id < ${before}::int)
         ORDER BY p.id DESC LIMIT ${PAGE}`;
-      return send({ posts: (await decorate(rows)).map(mapPost), pinned_posts: (await decorate(pinnedRows)).map(mapPost), promoted_posts: (await decorate(promotedRows)).map(mapPost), more: rows.length === PAGE });
+      const [dRows, dPinned, dPromoted] = await Promise.all([decorate(rows), decorate(pinnedRows), decorate(promotedRows)]);
+      return send({ posts: dRows.map(mapPost), pinned_posts: dPinned.map(mapPost), promoted_posts: dPromoted.map(mapPost), more: rows.length === PAGE });
     }
 
     // ---------- POSTS ----------

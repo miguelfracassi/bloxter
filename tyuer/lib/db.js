@@ -124,6 +124,9 @@ async function createAll() {
     created_at TIMESTAMPTZ NOT NULL DEFAULT now()
   )`;
   await s`CREATE INDEX IF NOT EXISTS comments_post_idx ON comments (post_id, id)`;
+  // Contagens e checagens por post/seguido não tinham índice (a chave primária começa por user_id): varriam a tabela inteira.
+  await s`CREATE INDEX IF NOT EXISTS likes_post_idx ON likes (post_id)`;
+  await s`CREATE INDEX IF NOT EXISTS follows_followee_idx ON follows (followee_id)`;
   await s`CREATE INDEX IF NOT EXISTS comments_user_idx ON comments (user_id, id DESC)`;
   // Respostas: parent_id aponta para o comentário principal (a conversa fica agrupada nele);
   // reply_to_uid é a pessoa a quem a resposta se dirige. Curtidas de comentário em tabela própria.
