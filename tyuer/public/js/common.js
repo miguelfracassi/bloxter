@@ -188,6 +188,10 @@
       'err.name_required': 'Digite seu nome.',
       'err.terms_required': 'Para criar a conta, você precisa aceitar os Termos de Serviço.',
       'err.post_empty': 'Escreva algo ou adicione uma foto antes de postar.',
+      'err.too_many_collabs': 'Você pode convidar até 5 pessoas.',
+      'err.collab_self': 'Você não pode convidar a si mesmo.',
+      'err.collab_user_not_found': 'Não encontramos uma das pessoas convidadas.',
+      'err.collab_declined': 'Esse convite já foi recusado.',
       'err.too_many_images': 'Você pode enviar até 4 fotos por publicação.',
       'err.invalid_image': 'Essa imagem não pôde ser usada. Use JPG, PNG ou WebP.',
       'err.images_too_large': 'As fotos ficaram pesadas demais. Tente menos fotos ou fotos menores.',
@@ -416,6 +420,10 @@
       'err.name_required': 'Enter your name.',
       'err.terms_required': 'To create an account you must accept the Terms of Service.',
       'err.post_empty': 'Write something or add a photo before posting.',
+      'err.too_many_collabs': 'You can invite up to 5 people.',
+      'err.collab_self': 'You cannot invite yourself.',
+      'err.collab_user_not_found': 'We could not find one of the invited people.',
+      'err.collab_declined': 'This invitation was already declined.',
       'err.too_many_images': 'You can attach up to 4 photos per post.',
       'err.invalid_image': "That image can't be used. Use JPG, PNG or WebP.",
       'err.images_too_large': 'The photos are too heavy. Try fewer or smaller photos.',
@@ -978,6 +986,7 @@
   }
 
   const ICON = {
+    people: '<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><circle cx=\"9\" cy=\"8\" r=\"3\"/><path d=\"M3 19v-1a6 6 0 0 1 12 0v1M16 5.5a3 3 0 0 1 0 5.8M18 14a5 5 0 0 1 3 4v1\"/></svg>',
     home: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11l9-8 9 8"/><path d="M5 10v10h5v-6h4v6h5V10"/></svg>',
     search: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>',
     msg: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a8 8 0 0 1-11.6 7.1L3 21l1.9-5.4A8 8 0 1 1 21 12z"/></svg>',
@@ -1567,6 +1576,7 @@
           ${!p.mine && p.user && !p.user.following && document.body.dataset.page !== 'profile' ? `<button type="button" class="post-follow" data-act="follow" data-user="${esc(p.user.username)}" data-post="${p.id}">${esc(t('follow'))}</button>` : ''}
           ${!p.mine && p.user ? `<button type="button" class="post-dots ${p.user.following || document.body.dataset.page === 'profile' ? 'push' : ''}" data-act="postmenu" data-id="${p.id}" data-user="${esc(p.user.username)}" aria-haspopup="menu" aria-label="${esc(t('report.more'))}">${ICON.dots}</button>` : ''}
         </div>
+        ${p.collaborators && p.collaborators.length ? `<div class="collab-line">${ICON.people}<span>com ${p.collaborators.map((c) => `<a href="${accountPath(c.username)}"><b>${esc(c.name)}</b></a>`).join(', ')}</span></div>` : ''}
         ${p.body ? `<div class="text">${fmt(p.body, { pageup: !!(p.user && p.user.pageup) })}</div>` : ''}
         ${imagesHTML(p.images)}${videosHTML(p.videos)}${musicHTML(p.music)}
         <div class="acts">
@@ -2204,6 +2214,17 @@
       try { await api('auth/logout', { method: 'POST' }); } catch { /* ignore */ }
       state.me = null; state.unread = 0; state.unreadNotif = 0; state.shell = null;
       go('/', true);
+    },
+    async collab(el) {
+      const card = el.closest('.collab-card'); if (!card) return;
+      const btns = card.querySelectorAll('button');
+      btns.forEach((b) => { b.disabled = true; });
+      try {
+        const r = await api(`collabs/${card.dataset.collab}/${el.dataset.val}`, { method: 'POST' });
+        card.dataset.status = r.status;
+        const box = $('.collab-actions', card);
+        if (box) box.innerHTML = `<span class="collab-state">${r.status === 'accepted' ? 'Você aceitou. O post já está no seu perfil.' : 'Você recusou este convite.'}</span>`;
+      } catch (e) { toast(errMsg(e)); btns.forEach((b) => { b.disabled = false; }); }
     },
     postnow() { setTimeout(() => $('.composer textarea')?.focus(), 80); },
     async like(el) {

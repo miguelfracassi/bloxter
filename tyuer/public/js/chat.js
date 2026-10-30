@@ -59,7 +59,23 @@
     const other = data.user;
     setTitle(other.name);
     let lastId = 0;
-    const bubble = (message) => `<div class="bubble ${message.mine ? 'me' : 'them'}" data-mid="${message.id}">${esc(message.body)}<small>${hhmm(message.created_at)}</small></div>`;
+    // Convite de colaboração: cartão com o post e, para quem foi convidado, Aceitar / Recusar.
+    const collabBubble = (message) => {
+      const c = message.collab;
+      const head = c.invited_me ? `${esc(other.name)} convidou você para colaborar` : `Você convidou ${esc(other.name)} para colaborar`;
+      let foot;
+      if (c.invited_me && c.status === 'pending') foot = '<div class="collab-actions"><button type="button" class="btn sm" data-act="collab" data-val="accept">Aceitar</button><button type="button" class="btn ghost sm" data-act="collab" data-val="decline">Recusar</button></div>';
+      else if (c.invited_me && c.status === 'accepted') foot = '<div class="collab-actions"><span class="collab-state">Você aceitou. O post está no seu perfil.</span><button type="button" class="btn ghost sm" data-act="collab" data-val="decline">Sair</button></div>';
+      else if (c.invited_me) foot = '<div class="collab-actions"><span class="collab-state">Você recusou este convite.</span></div>';
+      else foot = `<div class="collab-actions"><span class="collab-state">${c.status === 'accepted' ? 'Aceitou o convite.' : c.status === 'declined' ? 'Recusou o convite.' : 'Aguardando resposta…'}</span></div>`;
+      const preview = c.post_id ? `<button type="button" class="collab-post" data-open-post="${c.post_id}">${c.post_image ? `<img src="${esc(c.post_image)}" alt="" />` : ''}<span>${esc(c.post_body || 'Abrir publicação')}</span></button>` : '';
+      return `<div class="bubble collab-card ${message.mine ? 'me' : 'them'}" data-mid="${message.id}" data-collab="${c.id}" data-status="${esc(c.status)}"><div class="collab-card-head">${BX.ICON.people}<b>${head}</b></div>${preview}${foot}<small>${hhmm(message.created_at)}</small></div>`;
+    };
+    const bubble = (message) => message.collab ? collabBubble(message) : `<div class="bubble ${message.mine ? 'me' : 'them'}" data-mid="${message.id}">${esc(message.body)}<small>${hhmm(message.created_at)}</small></div>`;
+    view.addEventListener('click', (event) => {
+      const open = event.target.closest('[data-open-post]');
+      if (open) BX.openPost(Number(open.dataset.openPost));
+    });
     view.innerHTML = `<div class="page-head"><a class="icon-btn" href="/messages" aria-label="${esc(t('back'))}">${ICON.arrow}</a><a href="${accountPath(other.username)}" class="direct-thread-person">${avatar(other, 's32')}<h1>${esc(other.name)}${BX.badges(other)}<small>@${esc(other.username)}</small></h1></a></div><div class="thread"><div class="thread-body" id="tbody"></div><form class="thread-form" data-form="message" data-user="${esc(other.username)}"><input name="body" maxlength="1000" autocomplete="off" placeholder="${esc(t('msg.placeholder'))}"><button class="btn" type="submit">${t('msg.send')}</button></form></div>`;
     const body = $('#tbody');
     const add = (messages, shouldScroll = true) => {

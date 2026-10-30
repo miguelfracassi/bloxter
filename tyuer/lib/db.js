@@ -413,6 +413,22 @@ async function createAll() {
   await s`CREATE INDEX IF NOT EXISTS reports_status_idx ON reports (status, id DESC)`;
   await s`CREATE INDEX IF NOT EXISTS reports_reporter_idx ON reports (reporter_id, created_at DESC)`;
 
+  // Colaboração em posts: quem publica convida até 5 pessoas; o convite chega como mensagem na conversa
+  // (messages.collab_id) e o post só aparece no perfil do convidado depois que ele aceita (status = 'accepted').
+  await s`CREATE TABLE IF NOT EXISTS post_collabs (
+    id SERIAL PRIMARY KEY,
+    post_id INTEGER NOT NULL REFERENCES posts(id) ON DELETE CASCADE,
+    inviter_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    status TEXT NOT NULL DEFAULT 'pending',
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    responded_at TIMESTAMPTZ,
+    UNIQUE (post_id, user_id)
+  )`;
+  await s`CREATE INDEX IF NOT EXISTS post_collabs_user_idx ON post_collabs (user_id, status, post_id DESC)`;
+  await s`CREATE INDEX IF NOT EXISTS post_collabs_post_idx ON post_collabs (post_id, status)`;
+  await s`ALTER TABLE messages ADD COLUMN IF NOT EXISTS collab_id INTEGER REFERENCES post_collabs(id) ON DELETE SET NULL`;
+
 }
 
 // Cria as tabelas (idempotente). Várias requisições podem chegar ao mesmo tempo

@@ -28,9 +28,17 @@
           <div class="composer-music-msg" id="composer-music-msg" role="alert" hidden></div>
           <div id="composer-music-preview" hidden></div>
           <input type="text" id="composer-music-start" class="composer-music" placeholder="Começar em (ex.: 1:05)" inputmode="numeric" autocomplete="off" aria-label="Começar a música em" hidden />
+          <div class="composer-collab" id="composer-collab" hidden>
+            <div class="collab-chips" id="collab-chips"></div>
+            <div class="collab-field">
+              <input type="text" id="collab-input" placeholder="Buscar pessoa para convidar (até 5)" autocomplete="off" aria-label="Buscar pessoa para convidar" />
+              <div class="collab-suggest" id="collab-suggest" hidden></div>
+            </div>
+            <small class="collab-hint">O convite chega pela conversa. O post só aparece no perfil de quem aceitar.</small>
+          </div>
           <div class="row">
             <label class="icon-btn composer-photo" title="Adicionar fotos ou vídeo" aria-label="Adicionar fotos ou vídeo">${BX.ICON.image}<input type="file" id="composer-files" accept="image/png,image/jpeg,image/webp,video/mp4,video/webm,video/quicktime" multiple hidden /></label>
-            <button type="button" class="icon-btn composer-music-btn" data-act="musictoggle" title="Adicionar música" aria-label="Adicionar música"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg></button><span class="counter">500</span><button class="btn sm" type="submit">${t('post')}</button>
+            <button type="button" class="icon-btn composer-music-btn" data-act="musictoggle" title="Adicionar música" aria-label="Adicionar música"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg></button><button type="button" class="icon-btn composer-collab-btn" data-act="collabtoggle" title="Convidar colaboradores" aria-label="Convidar colaboradores">${BX.ICON.people}<span class="collab-count" id="collab-count" hidden></span></button><span class="counter">500</span><button class="btn sm" type="submit">${t('post')}</button>
           </div>
         </div>
       </form>
@@ -499,6 +507,68 @@
     if (b) setTimeout(() => { const i = $('#composer-music'); if (i && i.hidden) clearMusicPreview(); }, 0);
   });
 
+  // Colaboração: até 5 pessoas convidadas. O convite vai pela conversa e o post entra no perfil de quem aceitar.
+  const MAX_COLLABS = 5;
+  let composerCollabs = []; // [{ username, name, avatar }]
+  function renderCollabs() {
+    const chips = $('#collab-chips'); const count = $('#collab-count'); const btn = $('.composer-collab-btn');
+    if (chips) chips.innerHTML = composerCollabs.map((u, i) => `<span class="collab-chip">${avatar(u)}<span>${esc(u.name)}</span><button type="button" data-rm-collab="${i}" aria-label="Remover ${esc(u.name)}">✕</button></span>`).join('');
+    if (count) { count.hidden = !composerCollabs.length; count.textContent = String(composerCollabs.length); }
+    if (btn) btn.classList.toggle('has-collab', composerCollabs.length > 0);
+    const input = $('#collab-input'); if (input) input.disabled = composerCollabs.length >= MAX_COLLABS;
+  }
+  function resetCollabs() {
+    composerCollabs = [];
+    const panel = $('#composer-collab'); const input = $('#collab-input'); const box = $('#collab-suggest');
+    if (panel) panel.hidden = true;
+    if (input) input.value = '';
+    if (box) { box.hidden = true; box.innerHTML = ''; }
+    renderCollabs();
+  }
+  let collabSeq = 0; let collabFound = [];
+  const collabSearch = BX.debounce(async () => {
+    const input = $('#collab-input'); const box = $('#collab-suggest'); if (!input || !box) return;
+    const term = input.value.trim().replace(/^@/, '');
+    const my = ++collabSeq;
+    if (!term) { box.hidden = true; box.innerHTML = ''; return; }
+    try {
+      const { users } = await api(`search?q=${encodeURIComponent(term)}`);
+      if (my !== collabSeq) return;
+      collabFound = (users || []).filter((u) => u.id !== state.me.id && !composerCollabs.some((c) => c.username === u.username)).slice(0, 5);
+      box.innerHTML = collabFound.length
+        ? collabFound.map((u, i) => `<button type="button" class="collab-opt" data-add-collab="${i}">${avatar(u, 's32')}<span><b>${esc(u.name)}</b><small>@${esc(u.username)}</small></span></button>`).join('')
+        : '<div class="collab-none">Ninguém encontrado.</div>';
+      box.hidden = false;
+    } catch { box.hidden = true; }
+  }, 250);
+  function addCollab(u) {
+    if (!u) return;
+    if (composerCollabs.length >= MAX_COLLABS) return toast(t('err.too_many_collabs'));
+    if (composerCollabs.some((c) => c.username === u.username)) return;
+    composerCollabs.push({ username: u.username, name: u.name, avatar: u.avatar });
+    const input = $('#collab-input'); const box = $('#collab-suggest');
+    if (input) { input.value = ''; input.focus(); }
+    if (box) { box.hidden = true; box.innerHTML = ''; }
+    renderCollabs();
+  }
+  BX.actions.collabtoggle = () => {
+    const panel = $('#composer-collab'); if (!panel) return;
+    panel.hidden = !panel.hidden;
+    if (!panel.hidden) setTimeout(() => $('#collab-input')?.focus(), 30);
+  };
+  document.addEventListener('input', (e) => { if (e.target && e.target.id === 'collab-input') collabSearch(); });
+  document.addEventListener('keydown', (e) => {
+    if (!e.target || e.target.id !== 'collab-input') return;
+    if (e.key === 'Enter') { e.preventDefault(); addCollab(collabFound[0]); }
+    if (e.key === 'Escape') { const box = $('#collab-suggest'); if (box) box.hidden = true; }
+  });
+  document.addEventListener('click', (e) => {
+    const add = e.target.closest && e.target.closest('[data-add-collab]');
+    if (add) return addCollab(collabFound[Number(add.dataset.addCollab)]);
+    const rm = e.target.closest && e.target.closest('[data-rm-collab]');
+    if (rm) { composerCollabs.splice(Number(rm.dataset.rmCollab), 1); renderCollabs(); }
+  });
+
   forms.post = async (form) => {
     const textarea = form.body;
     const body = textarea.value.trim();
@@ -509,7 +579,10 @@
     const button = $('button[type=submit]', form);
     button.disabled = true;
     try {
-      const { post } = await api('posts', { method: 'POST', body: { body, images: composerImages, video: composerVideo || undefined, music: music || undefined, music_start: music ? BX.music.parseTime(($('#composer-music-start') || {}).value) : undefined } });
+      const { post } = await api('posts', { method: 'POST', body: { body, images: composerImages, video: composerVideo || undefined, music: music || undefined, music_start: music ? BX.music.parseTime(($('#composer-music-start') || {}).value) : undefined, collaborators: composerCollabs.length ? composerCollabs.map((c) => c.username) : undefined } });
+      const invited = composerCollabs.length;
+      resetCollabs();
+      if (invited) toast(invited === 1 ? 'Convite enviado pela conversa.' : `${invited} convites enviados pela conversa.`);
       if (musicInput) { musicInput.value = ''; musicInput.hidden = true; clearMusicPreview(); }
       textarea.value = '';
       composerImages = [];

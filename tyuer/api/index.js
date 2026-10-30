@@ -696,14 +696,22 @@ module.exports = async (req, res) => {
       if (!rows.length) return rows;
       const ids = [...new Set(rows.map((r) => r.id))];
       const uids = [...new Set(rows.map((r) => r.uid).filter((x) => x != null))];
-      const [cc, rc, mine, imgs, mus, fol] = await Promise.all([
+      const [cc, rc, mine, imgs, mus, fol, collabRows] = await Promise.all([
         sql`SELECT post_id, count(*)::int AS n FROM comments WHERE post_id = ANY(${ids}::int[]) GROUP BY post_id`,
         sql`SELECT post_id, count(*)::int AS n FROM reposts WHERE post_id = ANY(${ids}::int[]) GROUP BY post_id`,
         me ? sql`SELECT post_id FROM reposts WHERE user_id = ${me} AND post_id = ANY(${ids}::int[])` : [],
         sql`SELECT id, post_id, (left(data, 11) = 'data:video/') AS is_video FROM post_images WHERE post_id = ANY(${ids}::int[]) ORDER BY pos, id`,
         sql`SELECT id, music, music_title, music_start FROM posts WHERE id = ANY(${ids}::int[]) AND music <> ''`,
         me ? sql`SELECT followee_id FROM follows WHERE follower_id = ${me} AND followee_id = ANY(${uids}::int[])` : [],
+        sql`SELECT pc.post_id, u.id AS uid, u.username, u.name, u.avatar_v, u.verified, u.is_ai, u.pageup
+          FROM post_collabs pc JOIN users u ON u.id = pc.user_id
+          WHERE pc.post_id = ANY(${ids}::int[]) AND pc.status = 'accepted' AND u.banned_at IS NULL ORDER BY pc.id`,
       ]);
+      const collabMap = new Map();
+      for (const c of collabRows) {
+        if (!collabMap.has(c.post_id)) collabMap.set(c.post_id, []);
+        collabMap.get(c.post_id).push(pubUser(c));
+      }
       const cmap = new Map(cc.map((x) => [x.post_id, x.n]));
       const rmap = new Map(rc.map((x) => [x.post_id, x.n]));
       const mset = new Set(mine.map((x) => x.post_id));
@@ -716,7 +724,7 @@ module.exports = async (req, res) => {
       }
       const musmap = new Map(mus.map((x) => [x.id, { id: x.music, title: x.music_title, start: x.music_start || 0 }]));
       const fset = new Set(fol.map((x) => x.followee_id));
-      return rows.map((r) => ({ ...r, comments: cmap.get(r.id) || 0, reposts: rmap.get(r.id) || 0, reposted: mset.has(r.id), images: imap.get(r.id) || [], videos: vmap.get(r.id) || [], music: musmap.get(r.id) || null, following: fset.has(r.uid) }));
+      return rows.map((r) => ({ ...r, comments: cmap.get(r.id) || 0, reposts: rmap.get(r.id) || 0, reposted: mset.has(r.id), images: imap.get(r.id) || [], videos: vmap.get(r.id) || [], music: musmap.get(r.id) || null, following: fset.has(r.uid), collabs: collabMap.get(r.id) || [] }));
     };
 
     const mapPost = (r) => ({
@@ -733,6 +741,7 @@ module.exports = async (req, res) => {
       images: r.images || [],
       videos: r.videos || [],
       music: r.music || null,
+      collaborators: r.collabs || [],
       mine: me != null && r.uid === me,
       user: {
         id: r.uid,
@@ -2344,7 +2353,22 @@ module.exports = async (req, res) => {
       // Trecho inicial da música (segundos): número inteiro entre 0 e 4 horas.
       const musicStart = music ? Math.min(14400, Math.max(0, Math.floor(Number(d0.music_start) || 0))) : 0;
       if (!body && !rawImages.length && !music) throw new HttpError(400, 'post_empty');
+      // Colaboração: até 5 pessoas (nomes de usuário). Valida tudo antes de publicar.
+      const collabNames = [...new Set((Array.isArray(d0.collaborators) ? d0.collaborators : []).map((n) => cleanUsername(String(n || '').replace(/^@/, ''))).filter(Boolean))];
+      if (collabNames.length > 5) throw new HttpError(400, 'too_many_collabs');
+      let collabUsers = [];
+      if (collabNames.length) {
+        collabUsers = await sql`SELECT id, username FROM users WHERE username = ANY(${collabNames}::text[]) AND banned_at IS NULL`;
+        if (collabUsers.some((u) => u.id === me)) throw new HttpError(400, 'collab_self');
+        if (collabUsers.length !== collabNames.length) throw new HttpError(404, 'collab_user_not_found');
+      }
       const [row] = await sql`INSERT INTO posts (user_id, body, music, music_title, music_start) VALUES (${me}, ${body}, ${music}, ${musicTitle}, ${musicStart}) RETURNING id`;
+      // Cada convite vira uma mensagem na conversa; o post só entra no perfil da pessoa quando ela aceita.
+      for (const cu of collabUsers) {
+        const [cb] = await sql`INSERT INTO post_collabs (post_id, inviter_id, user_id) VALUES (${row.id}, ${me}, ${cu.id}) RETURNING id`;
+        const invite = `Convidou você para colaborar em um post${body ? `: “${str(body, 80)}”` : '.'}`;
+        await sql`INSERT INTO messages (sender_id, receiver_id, body, collab_id) VALUES (${me}, ${cu.id}, ${invite}, ${cb.id})`;
+      }
       for (let i = 0; i < rawImages.length; i++) {
         await sql`INSERT INTO post_images (post_id, pos, data) VALUES (${row.id}, ${i}, ${rawImages[i]})`;
       }
@@ -2557,7 +2581,7 @@ module.exports = async (req, res) => {
           u.roblox_username, u.roblox_user_id, u.roblox_avatar, u.avatar_v, u.banner_v, u.verified, u.is_ai, u.pageup, u.bannerup, u.created_at,
           ((SELECT count(*) FROM follows WHERE followee_id = u.id) + u.bonus_followers)::bigint AS followers,
           (SELECT count(*) FROM follows WHERE follower_id = u.id)::int AS following,
-          (SELECT count(*) FROM posts WHERE user_id = u.id)::int AS posts,
+          ((SELECT count(*) FROM posts WHERE user_id = u.id) + (SELECT count(*) FROM post_collabs pc WHERE pc.user_id = u.id AND pc.status = 'accepted'))::int AS posts,
           (SELECT count(*) FROM reposts WHERE user_id = u.id)::int AS reposts,
           EXISTS (SELECT 1 FROM follows WHERE follower_id = ${me} AND followee_id = u.id) AS is_following,
           EXISTS (SELECT 1 FROM follows WHERE follower_id = u.id AND followee_id = ${me}) AS follows_me
@@ -2621,7 +2645,10 @@ module.exports = async (req, res) => {
           (SELECT count(*) FROM likes l WHERE l.post_id = p.id)::int AS likes,
           EXISTS (SELECT 1 FROM likes l WHERE l.post_id = p.id AND l.user_id = ${me}) AS liked
         FROM posts p JOIN users u ON u.id = p.user_id
-        WHERE u.username = ${uname} AND (${before}::int IS NULL OR p.id < ${before}::int)
+        WHERE (u.username = ${uname}
+            OR EXISTS (SELECT 1 FROM post_collabs pc JOIN users cu ON cu.id = pc.user_id
+                       WHERE pc.post_id = p.id AND pc.status = 'accepted' AND cu.username = ${uname} AND cu.banned_at IS NULL))
+          AND (${before}::int IS NULL OR p.id < ${before}::int)
         ORDER BY p.id DESC LIMIT ${PAGE}`;
       return send({ posts: (await decorate(rows)).map(mapPost), more: rows.length === PAGE });
     }
@@ -2987,21 +3014,32 @@ module.exports = async (req, res) => {
       let rows;
       if (after > 0) {
         rows = await sql`
-          SELECT id, sender_id, body, created_at FROM messages
-          WHERE ((sender_id = ${me} AND receiver_id = ${other.id}) OR (sender_id = ${other.id} AND receiver_id = ${me}))
-            AND id > ${after}
-          ORDER BY id ASC LIMIT 200`;
+          SELECT m.id, m.sender_id, m.body, m.created_at, m.collab_id, pc.status AS collab_status, pc.user_id AS collab_user, pc.post_id AS collab_post,
+            cp.body AS collab_post_body, (SELECT pi.id FROM post_images pi WHERE pi.post_id = cp.id ORDER BY pi.pos, pi.id LIMIT 1) AS collab_post_image
+          FROM messages m LEFT JOIN post_collabs pc ON pc.id = m.collab_id LEFT JOIN posts cp ON cp.id = pc.post_id
+          WHERE ((m.sender_id = ${me} AND m.receiver_id = ${other.id}) OR (m.sender_id = ${other.id} AND m.receiver_id = ${me}))
+            AND m.id > ${after}
+          ORDER BY m.id ASC LIMIT 200`;
       } else {
         rows = await sql`
-          SELECT id, sender_id, body, created_at FROM messages
-          WHERE (sender_id = ${me} AND receiver_id = ${other.id}) OR (sender_id = ${other.id} AND receiver_id = ${me})
-          ORDER BY id DESC LIMIT 100`;
+          SELECT m.id, m.sender_id, m.body, m.created_at, m.collab_id, pc.status AS collab_status, pc.user_id AS collab_user, pc.post_id AS collab_post,
+            cp.body AS collab_post_body, (SELECT pi.id FROM post_images pi WHERE pi.post_id = cp.id ORDER BY pi.pos, pi.id LIMIT 1) AS collab_post_image
+          FROM messages m LEFT JOIN post_collabs pc ON pc.id = m.collab_id LEFT JOIN posts cp ON cp.id = pc.post_id
+          WHERE (m.sender_id = ${me} AND m.receiver_id = ${other.id}) OR (m.sender_id = ${other.id} AND m.receiver_id = ${me})
+          ORDER BY m.id DESC LIMIT 100`;
         rows.reverse();
       }
       await sql`UPDATE messages SET read_at = now() WHERE sender_id = ${other.id} AND receiver_id = ${me} AND read_at IS NULL`;
       return send({
         user: { id: other.id, username: other.username, name: other.name, avatar: avatarUrl(other.id, other.avatar_v), ...flags(other) },
-        messages: rows.map((r) => ({ id: r.id, mine: r.sender_id === me, body: r.body, created_at: r.created_at })),
+        messages: rows.map((r) => ({
+          id: r.id, mine: r.sender_id === me, body: r.body, created_at: r.created_at,
+          collab: r.collab_id ? {
+            id: r.collab_id, status: r.collab_status || 'pending', post_id: r.collab_post, post_body: r.collab_post_body || '',
+            post_image: r.collab_post_image ? `/api/post-image/${r.collab_post_image}` : null,
+            invited_me: r.collab_user === me,
+          } : null,
+        })),
       });
     }
 
@@ -3016,6 +3054,21 @@ module.exports = async (req, res) => {
         INSERT INTO messages (sender_id, receiver_id, body) VALUES (${me}, ${other.id}, ${body})
         RETURNING id, body, created_at`;
       return send({ message: { id: row.id, mine: true, body: row.body, created_at: row.created_at } }, 201);
+    }
+
+    // ---------- COLABORAÇÃO: quem foi convidado aceita, recusa ou sai ----------
+    // POST /api/collabs/:id/accept | decline. "decline" também serve para sair de uma colaboração já aceita
+    // (o post deixa de aparecer no perfil da pessoa).
+    if (a === 'collabs' && b && (c === 'accept' || c === 'decline') && method === 'POST') {
+      need();
+      const id = parseInt(b, 10);
+      if (!Number.isInteger(id) || id < 1) throw new HttpError(404, 'not_found');
+      const [cb] = await sql`SELECT id, status FROM post_collabs WHERE id = ${id} AND user_id = ${me}`;
+      if (!cb) throw new HttpError(404, 'not_found');
+      const next = c === 'accept' ? 'accepted' : 'declined';
+      if (c === 'accept' && cb.status === 'declined') throw new HttpError(409, 'collab_declined');
+      if (cb.status !== next) await sql`UPDATE post_collabs SET status = ${next}, responded_at = now() WHERE id = ${id}`;
+      return send({ ok: true, status: next });
     }
 
     throw new HttpError(404, 'not_found');
