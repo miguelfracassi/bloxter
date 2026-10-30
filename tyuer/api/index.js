@@ -448,10 +448,20 @@ module.exports = async (req, res) => {
           FROM posts p JOIN users u ON u.id = p.user_id
           WHERE p.id < ${before} AND (${uname} = '' OR u.username = ${uname})
           ORDER BY p.id DESC LIMIT ${limit}`;
+        const postIds = rows.map((r) => r.id);
+        const mediaRows = postIds.length ? await sql`
+          SELECT id, post_id, (left(data, 11) = 'data:video/') AS is_video
+          FROM post_images WHERE post_id = ANY(${postIds}::int[]) ORDER BY pos, id` : [];
+        const mediaByPost = new Map();
+        const origin = siteOrigin();
+        for (const item of mediaRows) {
+          if (!mediaByPost.has(item.post_id)) mediaByPost.set(item.post_id, { images: [], videos: [] });
+          mediaByPost.get(item.post_id)[item.is_video ? 'videos' : 'images'].push(`${origin}/api/post-image/${item.id}`);
+        }
         const [acc] = await sql`SELECT setting_value FROM site_settings WHERE setting_key = 'access_open'`;
         return send({
           site_open: !!acc && acc.setting_value === 'true',
-          posts: rows.map((r) => ({ id: r.id, body: r.body, created_at: r.created_at, likes: r.likes, comments: r.comments, reposts: r.reposts, user: { id: r.uid, username: r.username, name: r.name, avatar: avatarUrl(r.uid, r.avatar_v), ...flags(r) } })),
+          posts: rows.map((r) => ({ id: r.id, body: r.body, created_at: r.created_at, likes: r.likes, comments: r.comments, reposts: r.reposts, ...(mediaByPost.get(r.id) || { images: [], videos: [] }), user: { id: r.uid, username: r.username, name: r.name, avatar: avatarUrl(r.uid, r.avatar_v), ...flags(r) } })),
           next_before: rows.length === limit ? rows[rows.length - 1].id : null,
         });
       }
@@ -516,12 +526,22 @@ module.exports = async (req, res) => {
           FROM reposts rp JOIN users ru ON ru.id = rp.user_id JOIN posts p ON p.id = rp.post_id JOIN users o ON o.id = p.user_id
           WHERE rp.id < ${before} AND (${uname} = '' OR ru.username = ${uname})
           ORDER BY rp.id DESC LIMIT ${limit}`;
+        const postIds = [...new Set(rows.map((r) => r.id))];
+        const mediaRows = postIds.length ? await sql`
+          SELECT id, post_id, (left(data, 11) = 'data:video/') AS is_video
+          FROM post_images WHERE post_id = ANY(${postIds}::int[]) ORDER BY pos, id` : [];
+        const mediaByPost = new Map();
+        const origin = siteOrigin();
+        for (const item of mediaRows) {
+          if (!mediaByPost.has(item.post_id)) mediaByPost.set(item.post_id, { images: [], videos: [] });
+          mediaByPost.get(item.post_id)[item.is_video ? 'videos' : 'images'].push(`${origin}/api/post-image/${item.id}`);
+        }
         return send({
           reposts: rows.map((r) => ({
             id: r.rid,
             created_at: r.repost_at,
             reposted_by: pubUser({ uid: r.ruid, username: r.ru_username, name: r.ru_name, avatar_v: r.ru_avatar_v, verified: r.ru_verified, is_ai: r.ru_is_ai, pageup: r.ru_pageup }),
-            post: { id: r.id, body: r.body, created_at: r.created_at, likes: r.likes, comments: r.comments, reposts: r.reposts, user: pubUser(r) },
+            post: { id: r.id, body: r.body, created_at: r.created_at, likes: r.likes, comments: r.comments, reposts: r.reposts, ...(mediaByPost.get(r.id) || { images: [], videos: [] }), user: pubUser(r) },
           })),
           next_before: rows.length === limit ? rows[rows.length - 1].rid : null,
         });
@@ -532,16 +552,27 @@ module.exports = async (req, res) => {
         const before = parseInt(q.get('before'), 10) || 2147483647;
         const uname = cleanUsername(q.get('username'));
         const rows = await sql`
-          SELECT cm.id, cm.body, cm.created_at, cm.post_id,
+          SELECT cm.id, cm.body, cm.created_at, cm.post_id, p.body AS post_body,
             u.id AS uid, u.username, u.name, u.avatar_v, u.verified, u.is_ai, u.pageup,
-            o.id AS o_uid, o.username AS o_username
+            o.id AS o_uid, o.username AS o_username, o.name AS o_name, o.avatar_v AS o_avatar_v,
+            o.verified AS o_verified, o.is_ai AS o_is_ai, o.pageup AS o_pageup
           FROM comments cm JOIN users u ON u.id = cm.user_id JOIN posts p ON p.id = cm.post_id JOIN users o ON o.id = p.user_id
           WHERE cm.id < ${before} AND (${uname} = '' OR u.username = ${uname})
           ORDER BY cm.id DESC LIMIT ${limit}`;
+        const postIds = [...new Set(rows.map((r) => r.post_id))];
+        const mediaRows = postIds.length ? await sql`
+          SELECT id, post_id, (left(data, 11) = 'data:video/') AS is_video
+          FROM post_images WHERE post_id = ANY(${postIds}::int[]) ORDER BY pos, id` : [];
+        const mediaByPost = new Map();
+        const origin = siteOrigin();
+        for (const item of mediaRows) {
+          if (!mediaByPost.has(item.post_id)) mediaByPost.set(item.post_id, { images: [], videos: [] });
+          mediaByPost.get(item.post_id)[item.is_video ? 'videos' : 'images'].push(`${origin}/api/post-image/${item.id}`);
+        }
         return send({
           comments: rows.map((r) => ({
             id: r.id, body: r.body, created_at: r.created_at, user: pubUser(r),
-            post: { id: r.post_id, user: { id: r.o_uid, username: r.o_username } },
+            post: { id: r.post_id, body: r.post_body, ...(mediaByPost.get(r.post_id) || { images: [], videos: [] }), user: pubUser({ uid: r.o_uid, username: r.o_username, name: r.o_name, avatar_v: r.o_avatar_v, verified: r.o_verified, is_ai: r.o_is_ai, pageup: r.o_pageup }) },
           })),
           next_before: rows.length === limit ? rows[rows.length - 1].id : null,
         });
