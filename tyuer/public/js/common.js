@@ -28,13 +28,14 @@
     ready: false,
     lang: 'pt',
     theme: 'dark',
+    appearance: 'normal',
     shell: null, // 'app' | 'public'
     next: null,
     timers: [],
     feedTab: 'all',
     unread: 0,
     // Recursos que a administração libera em /administracao. Começam bloqueados até o site/status responder.
-    features: { comments: false, likes: false, hashtags: false, discord: false },
+    features: { comments: false, likes: false, hashtags: false, discord: false, liquid_glass: false },
   };
 
   /* =====================================================
@@ -523,6 +524,13 @@
     if (meta) meta.setAttribute('content', state.theme === 'light' ? '#ffffff' : '#000000');
     document.querySelectorAll('[data-act="theme"]').forEach((b) => b.setAttribute('aria-label', t('toggle.theme')));
     document.querySelectorAll('.seg-theme button').forEach((b) => b.classList.toggle('on', b.dataset.val === state.theme));
+  }
+  function applyAppearance(appearance) {
+    const requested = appearance === 'liquid' ? 'liquid' : 'normal';
+    state.appearance = requested === 'liquid' && state.features.liquid_glass ? 'liquid' : 'normal';
+    store.set('bx_appearance', state.appearance);
+    document.documentElement.setAttribute('data-appearance', state.appearance);
+    document.querySelectorAll('[data-act="appearanceset"]').forEach((button) => button.classList.toggle('on', button.dataset.val === state.appearance));
   }
 
   /* =====================================================
@@ -2430,6 +2438,7 @@
     try {
       const access = await api('site/status');
       Object.assign(state.features, access.features || {});
+      applyAppearance(store.get('bx_appearance'));
       adminPreview = !access.access_open && access.admin_bypass;
       if (!access.access_open && !access.admin_bypass && location.pathname !== '/acess' && !adminPage) {
         go('/acess', true);

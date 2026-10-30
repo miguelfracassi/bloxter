@@ -82,6 +82,13 @@
             <button type="button" data-act="themeset" data-val="light" class="${state.theme === 'light' ? 'on' : ''}">${t('settings.themeLight')}</button>
           </div>
         </div>
+        <div class="setting-card">
+          <div class="setting-card-copy"><b>Aparência</b><span>${state.features.liquid_glass ? 'Escolha Liquid Glass ou volte ao visual normal quando quiser.' : 'O tema Liquid Glass ainda não foi liberado pela administração.'}</span></div>
+          <div class="pill-toggle setting-control" role="group" aria-label="Aparência do site">
+            <button type="button" data-act="appearanceset" data-val="normal" class="${state.appearance === 'normal' ? 'on' : ''}">Normal</button>
+            <button type="button" data-act="appearanceset" data-val="liquid" class="${state.appearance === 'liquid' ? 'on' : ''}" ${state.features.liquid_glass ? '' : 'disabled title="Ainda não liberado"'}>Liquid Glass</button>
+          </div>
+        </div>
       </section>
       <section data-settings-panel="app" role="tabpanel" hidden>
         <h3>Aplicativo</h3>

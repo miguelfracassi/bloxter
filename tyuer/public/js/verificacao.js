@@ -791,7 +791,7 @@
     return { open: render };
   }
 
-  // ---------- Recursos: liberar comentários, curtidas, # e Discord para todos ----------
+  // ---------- Recursos opcionais liberados pela administração ----------
   function featuresModule() {
     const box = document.getElementById('features-box');
     const META = {
@@ -799,6 +799,7 @@
       likes: { name: 'Curtidas', desc: 'Botão de curtir nos posts e nos comentários, com a contagem.' },
       hashtags: { name: 'Hashtags (#)', desc: 'As #hashtags viram link, a busca por # e a página Top #.' },
       discord: { name: 'Discord', desc: 'Página /discord, link no rodapé e a opção *discord do PageUP.' },
+      liquid_glass: { name: 'Tema Liquid Glass', desc: 'Libera a aparência de vidro translúcido em Acessibilidade. Cada pessoa pode voltar ao visual normal a qualquer momento.' },
     };
     const when = (d) => new Date(d).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
     const card = (key, f) => `<div class="u" data-feature="${key}">

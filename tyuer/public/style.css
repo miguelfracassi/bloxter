@@ -1016,3 +1016,55 @@ img { display: block; max-width: 100%; }
 .rp-done { text-align: center; display: flex; flex-direction: column; gap: 10px; align-items: stretch; padding: 10px 0; }
 .rp-done p { color: var(--fg2); font-size: 14px; }
 .rp-check { width: 52px; height: 52px; margin: 0 auto; display: grid; place-items: center; border-radius: 999px; border: 2px solid var(--fg); font-size: 26px; font-weight: 700; }
+
+/* Liquid Glass é uma aparência opcional liberada em Recursos na administração. */
+:root[data-appearance='liquid'][data-theme='dark'] {
+  --bg: #080d18;
+  --card: rgba(19, 29, 46, .62);
+  --line: rgba(210, 231, 255, .20);
+  --hover: rgba(195, 222, 255, .10);
+  --shadow: rgba(89, 160, 255, .15);
+}
+:root[data-appearance='liquid'][data-theme='light'] {
+  --bg: #eaf2fb;
+  --card: rgba(255, 255, 255, .58);
+  --line: rgba(42, 75, 112, .18);
+  --hover: rgba(255, 255, 255, .70);
+  --shadow: rgba(58, 99, 148, .13);
+}
+:root[data-appearance='liquid'] body {
+  background-image: radial-gradient(ellipse at 15% 0%, rgba(87, 148, 220, .22), transparent 42%),
+    radial-gradient(ellipse at 90% 35%, rgba(118, 91, 196, .15), transparent 38%);
+  background-attachment: fixed;
+}
+:root[data-appearance='liquid'] .box,
+:root[data-appearance='liquid'] .setting-card,
+:root[data-appearance='liquid'] .post,
+:root[data-appearance='liquid'] .nav,
+:root[data-appearance='liquid'] .side,
+:root[data-appearance='liquid'] .topbar,
+:root[data-appearance='liquid'] .right .box,
+:root[data-appearance='liquid'] .bx-modal-card,
+:root[data-appearance='liquid'] .post-pop,
+:root[data-appearance='liquid'] .composer .box {
+  background-color: var(--card);
+  border-color: var(--line);
+  box-shadow: 0 12px 38px var(--shadow), inset 0 1px 0 rgba(255, 255, 255, .12);
+  -webkit-backdrop-filter: blur(20px) saturate(145%);
+  backdrop-filter: blur(20px) saturate(145%);
+}
+:root[data-appearance='liquid'] .post { border-radius: 16px; margin: 8px 0; }
+:root[data-appearance='liquid'] .btn.ghost,
+:root[data-appearance='liquid'] .pill-toggle { background-color: rgba(255, 255, 255, .055); }
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  :root[data-appearance='liquid'] .box,
+  :root[data-appearance='liquid'] .setting-card,
+  :root[data-appearance='liquid'] .post,
+  :root[data-appearance='liquid'] .nav,
+  :root[data-appearance='liquid'] .side,
+  :root[data-appearance='liquid'] .topbar,
+  :root[data-appearance='liquid'] .right .box,
+  :root[data-appearance='liquid'] .bx-modal-card,
+  :root[data-appearance='liquid'] .post-pop,
+  :root[data-appearance='liquid'] .composer .box { background-color: var(--card); }
+}

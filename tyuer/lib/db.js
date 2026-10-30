@@ -313,7 +313,7 @@ async function createAll() {
   await s`ALTER TABLE users ADD COLUMN IF NOT EXISTS banned_at TIMESTAMPTZ`;
   await s`ALTER TABLE users ADD COLUMN IF NOT EXISTS ban_reason TEXT NOT NULL DEFAULT ''`;
   // Recursos liberados pela administração (começam bloqueados; "Liberar" em /administracao muda para 'true' e vale para todos).
-  await s`INSERT INTO site_settings (setting_key, setting_value) VALUES ('feature_comments', 'false'), ('feature_likes', 'false'), ('feature_hashtags', 'false'), ('feature_discord', 'false') ON CONFLICT (setting_key) DO NOTHING`;
+  await s`INSERT INTO site_settings (setting_key, setting_value) VALUES ('feature_comments', 'false'), ('feature_likes', 'false'), ('feature_hashtags', 'false'), ('feature_discord', 'false'), ('feature_liquid_glass', 'false') ON CONFLICT (setting_key) DO NOTHING`;
   await s`CREATE TABLE IF NOT EXISTS notifications (
     id SERIAL PRIMARY KEY,
     user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,

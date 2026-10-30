@@ -280,9 +280,9 @@ module.exports = async (req, res) => {
       return !row || row.setting_value !== 'false';
     };
 
-    // Recursos que a administração libera para todos (comentários, curtidas, # e Discord).
+    // Recursos que a administração libera para todos (inclui a aparência Liquid Glass).
     // Ficam na tabela site_settings (feature_<nome> = 'true'/'false') e começam bloqueados.
-    const FEATURES = ['comments', 'likes', 'hashtags', 'discord'];
+    const FEATURES = ['comments', 'likes', 'hashtags', 'discord', 'liquid_glass'];
     const featureRows = async () => {
       const rows = await sql`SELECT setting_key, setting_value FROM site_settings WHERE setting_key LIKE 'feature%'`;
       return Object.fromEntries(rows.map((r) => [r.setting_key, r.setting_value]));
