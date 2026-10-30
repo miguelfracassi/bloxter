@@ -1044,7 +1044,6 @@ img { display: block; max-width: 100%; }
 }
 :root[data-appearance='liquid'] .box,
 :root[data-appearance='liquid'] .setting-card,
-:root[data-appearance='liquid'] .post,
 :root[data-appearance='liquid'] .right .box,
 :root[data-appearance='liquid'] .notif {
   background-color: var(--card);
@@ -1064,7 +1063,15 @@ img { display: block; max-width: 100%; }
   -webkit-backdrop-filter: blur(12px) saturate(105%);
   backdrop-filter: blur(12px) saturate(105%);
 }
-:root[data-appearance='liquid'] .post { border-radius: 16px; margin: 8px 0; }
+:root[data-appearance='liquid'] .post:not(.post-sponsored) {
+  background-color: transparent;
+  border-color: var(--line);
+  border-radius: 0;
+  margin: 0;
+  box-shadow: none;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
 :root[data-appearance='liquid'] .notif { border: 1px solid var(--line); border-radius: 16px; margin: 8px 0; padding: 12px; }
 :root[data-appearance='liquid'] .tabs button,
 :root[data-appearance='liquid'] .setting-tabs button { transition: transform .18s ease, background .18s ease; }

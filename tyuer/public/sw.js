@@ -3,7 +3,7 @@
    Regras: a API (/api) NUNCA passa por aqui nem fica salva. As páginas dependem da API,
    então não são guardadas: sem conexão, a navegação cai na tela offline. Arquivos
    estáticos (css, js, imagens) usam "rede primeiro" e o cache só entra se a rede falhar. */
-const VERSION = 'v-icons-202610297790';
+const VERSION = 'v-feed-cards-normal-20261030';
 const STATIC_CACHE = `bloxter-static-${VERSION}`;
 const RUNTIME_CACHE = `bloxter-runtime-${VERSION}`;
 const RUNTIME_LIMIT = 60;
