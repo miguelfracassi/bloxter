@@ -982,14 +982,16 @@ img { display: block; max-width: 100%; }
 .composer-music { width: 100%; margin-top: 8px; padding: 9px 12px; border: 1px solid var(--line); border-radius: 12px; background: transparent; color: var(--fg); font: inherit; font-size: 14px; }
 .composer-music:focus { outline: 0; border-color: var(--fg); }
 .composer-music[hidden] { display: none; }
-.post-music { position: relative; display: inline-flex; align-items: center; gap: 6px; margin-top: 8px; max-width: 100%; }
+.post-music { position: relative; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 8px; max-width: 100%; }
 .post-music .pm-btn { flex: none; width: 32px; height: 32px; display: grid; place-items: center; border-radius: 50%; background: rgba(0, 0, 0, .65); color: #fff; }
 .post-music .pm-btn:hover { background: rgba(0, 0, 0, .8); }
 .post-music.pm-on .pm-btn { box-shadow: 0 0 0 2px var(--fg); }
 .pm-title { min-width: 0; max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; color: var(--fg2); text-align: left; }
 .pm-vol { flex: none; width: 0; opacity: 0; transition: width .15s, opacity .15s; accent-color: var(--fg); }
 .post-music:hover .pm-vol, .post-music:focus-within .pm-vol, .post-music.pm-on .pm-vol { width: 72px; opacity: 1; }
-.pm-host { position: absolute; width: 1px; height: 1px; overflow: hidden; opacity: 0; pointer-events: none; }
+.pm-host:empty { display: none; }
+.pm-host { flex: 0 0 min(100%, 360px); width: min(100%, 360px); aspect-ratio: 16 / 9; min-height: 200px; overflow: hidden; border: 1px solid var(--line); border-radius: 12px; background: #000; }
+.pm-host > div,.pm-host iframe { display: block; width: 100% !important; height: 100% !important; border: 0; }
 @media (max-width: 380px) { .pm-vol { width: 56px; } }
 .composer-music-msg { margin-top: 6px; font-size: 13px; color: var(--fg2); }
 .composer-music-msg[hidden], #composer-music-preview[hidden] { display: none; }

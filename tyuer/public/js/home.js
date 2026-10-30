@@ -130,6 +130,7 @@
     if (!strip) return;
     try {
       const { stories = [] } = await api('stories');
+      if (stories.some((story) => story.music)) BX.music.prepare();
       const byUser = new Map();
       for (const story of stories) {
         const key = String(story.user.id);
@@ -197,7 +198,7 @@
         <form id="story-compose-form">
           <label class="story-upload" for="story-image"><span class="story-upload-icon">＋</span><b>Adicionar foto</b><small>JPG, PNG ou WebP</small><input id="story-image" type="file" accept="image/png,image/jpeg,image/webp" hidden></label>
           <div id="story-preview" class="story-preview" hidden></div>
-          <label for="story-body">Texto</label><textarea id="story-body" maxlength="300" placeholder="O que você quer compartilhar?"></textarea>
+          <label for="story-body">Texto (opcional)</label><textarea id="story-body" maxlength="300" placeholder="O que você quer compartilhar?"></textarea>
           <div class="story-compose-counter"><span>Opcional</span><span id="story-body-count">0/300</span></div>
           <label for="story-link">Link (opcional)</label><input id="story-link" type="text" maxlength="200" placeholder="seusite.com ou https://…" inputmode="url" autocapitalize="off" autocomplete="off" spellcheck="false">
           <label for="story-music">Música do YouTube (opcional)</label><input id="story-music" type="url" maxlength="300" placeholder="Cole o link da música" inputmode="url" autocapitalize="off" autocomplete="off" spellcheck="false">

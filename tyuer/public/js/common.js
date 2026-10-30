@@ -1412,6 +1412,9 @@
   // Botão redondo escuro com alto-falante (estilo Instagram). O volume aparece ao passar o mouse/focar.
   function musicHTML(m, preview) {
     if (!m || !m.id) return '';
+    // A API precisa estar pronta antes do primeiro toque para o navegador reconhecer
+    // o início da reprodução como uma ação do usuário.
+    loadYT().catch(() => {});
     const title = m.title || 'YouTube';
     const start = Number(m.start) || 0;
     return `<div class="post-music${preview ? ' pm-preview' : ''}" data-music="${esc(m.id)}" data-start="${start}">
@@ -1475,12 +1478,20 @@
     try { p.setVolume(music.vol); if (music.muted || music.vol === 0) p.mute(); else p.unMute(); } catch { /* player ainda carregando */ }
   }
   function loadYT() {
+    if (window.YT && window.YT.Player) return Promise.resolve(window.YT);
     if (music.api) return music.api;
-    music.api = new Promise((ok) => {
-      if (window.YT && window.YT.Player) return ok(window.YT);
+    music.api = new Promise((ok, no) => {
       const prev = window.onYouTubeIframeAPIReady;
-      window.onYouTubeIframeAPIReady = () => { if (prev) prev(); ok(window.YT); };
-      const s = document.createElement('script'); s.src = 'https://www.youtube.com/iframe_api'; document.head.appendChild(s);
+      const timer = setTimeout(() => { music.api = null; no(new Error('youtube_timeout')); }, 15000);
+      window.onYouTubeIframeAPIReady = () => {
+        if (prev) { try { prev(); } catch { /* callback externo */ } }
+        clearTimeout(timer);
+        if (window.YT && window.YT.Player) ok(window.YT);
+        else { music.api = null; no(new Error('youtube_unavailable')); }
+      };
+      const s = document.createElement('script'); s.src = 'https://www.youtube.com/iframe_api';
+      s.onerror = () => { clearTimeout(timer); music.api = null; no(new Error('youtube_unavailable')); };
+      document.head.appendChild(s);
     });
     return music.api;
   }
@@ -1511,10 +1522,20 @@
     const YT = await loadYT();
     if (music.bar !== bar) return;
     music.player = new YT.Player(bar.querySelector('.pm-host').firstChild, {
-      width: '200', height: '200', videoId: bar.dataset.music,
-      playerVars: { start: Number(bar.dataset.start) || 0, autoplay: 1, controls: 0, playsinline: 1, rel: 0, modestbranding: 1 },
+      width: '360', height: '203', videoId: bar.dataset.music,
+      playerVars: { start: Number(bar.dataset.start) || 0, autoplay: 1, controls: 1, playsinline: 1, rel: 0, enablejsapi: 1, origin: location.origin },
       events: {
-        onReady: () => { applyMusicAudio(); try { music.player.playVideo(); } catch { /* ignore */ } },
+        onReady: () => {
+          try {
+            const frame = music.player.getIframe();
+            frame.setAttribute('allow', 'autoplay; encrypted-media; picture-in-picture; web-share');
+            frame.setAttribute('referrerpolicy', 'strict-origin-when-cross-origin');
+          } catch { /* iframe ainda não disponível */ }
+          applyMusicAudio();
+          try { music.player.playVideo(); } catch { /* ignore */ }
+        },
+        onAutoplayBlocked: () => toast('O navegador bloqueou o início automático. Toque em reproduzir no player para liberar o som.'),
+        onError: (event) => { music.playing = false; syncMusicUI(); toast(event.data === 101 || event.data === 150 ? 'Este vídeo não permite reprodução incorporada.' : 'Não foi possível carregar esta música.'); },
         onStateChange: (e) => {
           music.playing = e.data === 1 || e.data === 3;
           if (e.data === 0) { music.playing = false; try { music.player.seekTo(0); music.player.pauseVideo(); } catch { /* ignore */ } }
@@ -2178,6 +2199,7 @@
     lang(el) { applyLang(el.dataset.val); },
     theme() { applyTheme(state.theme === 'dark' ? 'light' : 'dark'); },
     themeset(el) { applyTheme(el.dataset.val); },
+    appearanceset(el) { applyAppearance(el.dataset.val); },
     async logout() {
       try { await api('auth/logout', { method: 'POST' }); } catch { /* ignore */ }
       state.me = null; state.unread = 0; state.unreadNotif = 0; state.shell = null;
@@ -2239,11 +2261,11 @@
       el.setAttribute('aria-expanded', String(open));
     },
     viewimg(el) { openImageViewer(el.dataset.src); },
-    musicplay(el) { musicPlay(el.closest('.post-music')); },
+    musicplay(el) { musicPlay(el.closest('.post-music')).catch(() => toast('Não foi possível carregar o player do YouTube. Verifique a conexão e tente novamente.')); },
     musicbtn(el) { // 1º toque: toca e liga o som; depois: muta/desmuta (global)
       const bar = el.closest('.post-music');
       setAutoMusic(true);
-      if (bar !== music.bar || !music.playing) { if (music.muted) { music.muted = false; if (!music.vol) music.vol = 70; store.set('bx_music_mute', '0'); store.set('bx_music_vol', String(music.vol)); } musicPlay(bar); return; }
+      if (bar !== music.bar || !music.playing) { if (music.muted) { music.muted = false; if (!music.vol) music.vol = 70; store.set('bx_music_mute', '0'); store.set('bx_music_vol', String(music.vol)); } musicPlay(bar).catch(() => toast('Não foi possível carregar o player do YouTube. Verifique a conexão e tente novamente.')); return; }
       actions.musicmute();
     },
     musicauto() {
@@ -2253,7 +2275,7 @@
       const bar = bestVisibleMusicBar() || document.querySelector('.post .post-music:not(.pm-preview)');
       if (!bar) { toast('Som automático ativado. Ele começa quando uma publicação com música aparecer.'); return; }
       if (music.muted) { music.muted = false; if (!music.vol) music.vol = 70; store.set('bx_music_mute', '0'); store.set('bx_music_vol', String(music.vol)); }
-      musicPlay(bar);
+      musicPlay(bar).catch(() => toast('Não foi possível carregar o player do YouTube. Verifique a conexão e tente novamente.'));
     },
     musicmute() {
       music.muted = !music.muted;
@@ -2614,7 +2636,7 @@
     accountPath, toggles, langToggle, setTitle, go, safeNext, appShell, publicShell, refreshShellText,
     setActiveNav, updateBadge, pollUnread, badges, followLabel, userRow, usernameChecker, postHTML, loadMoreBtn, feed,
     loadPosts, setFeed, forms, actions, openSheet, openReport, openPost, openImageViewer, imagesHTML, subscribePush, applyLang, applyTheme, openProfileDetails, openOnboarding, init,
-    music: { seek: (bar, sec) => { if (bar === music.bar && music.player) { try { music.player.seekTo(sec, true); } catch { /* ignore */ } } }, html: musicHTML, ytId, ytStart, parseTime, fmtTime, stop: stopMusic, sync: syncMusicUI, autoButton: () => `<button type="button" class="btn ghost sm" data-act="musicauto" aria-pressed="${music.autoFollow}">${music.autoFollow ? 'Som automático ligado' : 'Som automático'}</button>`, setAuto: setAutoMusic },
+    music: { seek: (bar, sec) => { if (bar === music.bar && music.player) { try { music.player.seekTo(sec, true); } catch { /* ignore */ } } }, html: musicHTML, prepare: () => loadYT().catch(() => null), ytId, ytStart, parseTime, fmtTime, stop: stopMusic, sync: syncMusicUI, autoButton: () => `<button type="button" class="btn ghost sm" data-act="musicauto" aria-pressed="${music.autoFollow}">${music.autoFollow ? 'Som automático ligado' : 'Som automático'}</button>`, setAuto: setAutoMusic },
   };
 
 })();
