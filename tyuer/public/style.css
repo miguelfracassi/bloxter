@@ -1023,43 +1023,46 @@ img { display: block; max-width: 100%; }
 .rp-done p { color: var(--fg2); font-size: 14px; }
 .rp-check { width: 52px; height: 52px; margin: 0 auto; display: grid; place-items: center; border-radius: 999px; border: 2px solid var(--fg); font-size: 26px; font-weight: 700; }
 
-/* Liquid Glass neutro: superfícies seletivas de vidro fosco em preto/branco. */
+/* Liquid Glass discreto: cartões legíveis e vidro apenas na navegação e em camadas flutuantes. */
 :root[data-appearance='liquid'][data-theme='dark'] {
   --bg: #050505;
-  --card: rgba(30, 30, 30, .62);
-  --line: rgba(255, 255, 255, .17);
-  --hover: rgba(255, 255, 255, .085);
-  --shadow: rgba(0, 0, 0, .28);
+  --card: rgba(24, 24, 24, .94);
+  --line: rgba(255, 255, 255, .12);
+  --hover: rgba(255, 255, 255, .07);
+  --shadow: rgba(0, 0, 0, .20);
 }
 :root[data-appearance='liquid'][data-theme='light'] {
-  --bg: #f5f5f5;
-  --card: rgba(255, 255, 255, .68);
-  --line: rgba(0, 0, 0, .12);
-  --hover: rgba(255, 255, 255, .78);
-  --shadow: rgba(0, 0, 0, .10);
+  --bg: #f7f7f7;
+  --card: rgba(255, 255, 255, .96);
+  --line: rgba(0, 0, 0, .09);
+  --hover: rgba(0, 0, 0, .035);
+  --shadow: rgba(0, 0, 0, .07);
 }
 :root[data-appearance='liquid'] body {
-  background-image: radial-gradient(ellipse at 50% -15%, rgba(255, 255, 255, .075), transparent 50%);
+  background-image: radial-gradient(ellipse at 50% -18%, rgba(255, 255, 255, .045), transparent 48%);
   background-attachment: fixed;
 }
 :root[data-appearance='liquid'] .box,
 :root[data-appearance='liquid'] .setting-card,
 :root[data-appearance='liquid'] .post,
+:root[data-appearance='liquid'] .right .box,
+:root[data-appearance='liquid'] .notif {
+  background-color: var(--card);
+  border-color: var(--line);
+  box-shadow: 0 4px 18px var(--shadow);
+}
 :root[data-appearance='liquid'] .nav,
 :root[data-appearance='liquid'] .side,
 :root[data-appearance='liquid'] .topbar,
-:root[data-appearance='liquid'] .right .box,
 :root[data-appearance='liquid'] .bx-modal-card,
 :root[data-appearance='liquid'] .post-pop,
-:root[data-appearance='liquid'] .notif,
 :root[data-appearance='liquid'] .stories-panel,
-:root[data-appearance='liquid'] .profile-head,
-:root[data-appearance='liquid'] .composer .box {
+:root[data-appearance='liquid'] .profile-head {
   background-color: var(--card);
   border-color: var(--line);
-  box-shadow: 0 10px 32px var(--shadow), inset 0 1px 0 rgba(255, 255, 255, .16);
-  -webkit-backdrop-filter: blur(18px) saturate(110%);
-  backdrop-filter: blur(18px) saturate(110%);
+  box-shadow: 0 8px 28px var(--shadow), inset 0 1px 0 rgba(255, 255, 255, .09);
+  -webkit-backdrop-filter: blur(12px) saturate(105%);
+  backdrop-filter: blur(12px) saturate(105%);
 }
 :root[data-appearance='liquid'] .post { border-radius: 16px; margin: 8px 0; }
 :root[data-appearance='liquid'] .notif { border: 1px solid var(--line); border-radius: 16px; margin: 8px 0; padding: 12px; }
@@ -1070,18 +1073,14 @@ img { display: block; max-width: 100%; }
 :root[data-appearance='liquid'] .btn.ghost,
 :root[data-appearance='liquid'] .pill-toggle { background-color: rgba(255, 255, 255, .055); }
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
-  :root[data-appearance='liquid'] .box,
-  :root[data-appearance='liquid'] .setting-card,
-  :root[data-appearance='liquid'] .post,
   :root[data-appearance='liquid'] .nav,
   :root[data-appearance='liquid'] .side,
   :root[data-appearance='liquid'] .topbar,
-  :root[data-appearance='liquid'] .right .box,
   :root[data-appearance='liquid'] .bx-modal-card,
   :root[data-appearance='liquid'] .post-pop,
-  :root[data-appearance='liquid'] .composer .box { background-color: var(--card); }
+  :root[data-appearance='liquid'] .stories-panel,
+  :root[data-appearance='liquid'] .profile-head { background-color: var(--card); }
 }
-
 .bx-glass-invite { position:fixed; inset:0; z-index:1600; display:grid; place-items:center; padding:18px; background:rgba(0,0,0,.58); -webkit-backdrop-filter:blur(18px); backdrop-filter:blur(18px); }
 .bx-glass-invite-card { position:relative; isolation:isolate; overflow:hidden; width:min(100%,480px); padding:clamp(24px,6vw,36px); border:1px solid rgba(255,255,255,.26); border-radius:30px; color:#fff; background:linear-gradient(140deg,rgba(48,48,48,.82),rgba(12,12,12,.78) 58%,rgba(35,35,35,.82)); box-shadow:0 30px 100px rgba(0,0,0,.45),inset 0 1px 0 rgba(255,255,255,.25); -webkit-backdrop-filter:blur(30px) saturate(110%); backdrop-filter:blur(30px) saturate(110%); }
 .bx-glass-invite-card::before,.bx-glass-invite-card::after { position:absolute; z-index:-1; content:""; width:210px; height:210px; border-radius:50%; filter:blur(4px); opacity:.5; }
