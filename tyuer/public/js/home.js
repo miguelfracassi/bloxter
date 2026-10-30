@@ -200,6 +200,8 @@
           <label for="story-body">Texto</label><textarea id="story-body" maxlength="300" placeholder="O que você quer compartilhar?"></textarea>
           <div class="story-compose-counter"><span>Opcional</span><span id="story-body-count">0/300</span></div>
           <label for="story-link">Link (opcional)</label><input id="story-link" type="text" maxlength="200" placeholder="seusite.com ou https://…" inputmode="url" autocapitalize="off" autocomplete="off" spellcheck="false">
+          <label for="story-music">Música do YouTube (opcional)</label><input id="story-music" type="url" maxlength="300" placeholder="Cole o link da música" inputmode="url" autocapitalize="off" autocomplete="off" spellcheck="false">
+          <small class="story-music-hint">Quem assistir pode tocar a música pelo controle no story.</small>
           <p class="story-form-error" id="story-form-error" role="alert"></p>
           <footer><button class="btn ghost" type="button" data-story-cancel>Cancelar</button><button class="btn" type="submit">Publicar story</button></footer>
         </form>
@@ -228,12 +230,14 @@
       event.preventDefault();
       const body = modal.querySelector('#story-body').value.trim();
       const link = modal.querySelector('#story-link').value.trim();
+      const music = modal.querySelector('#story-music').value.trim();
       const error = modal.querySelector('#story-form-error');
-      if (!body && !media) { error.textContent = 'Adicione uma foto ou escreva um texto.'; return; }
+      if (music && !BX.music.ytId(music)) { error.textContent = 'Cole um link válido do YouTube.'; return; }
+      if (!body && !media && !music) { error.textContent = 'Adicione uma foto, uma música ou escreva um texto.'; return; }
       const submit = form.querySelector('[type=submit]');
       submit.disabled = true; submit.textContent = 'Publicando…'; error.textContent = '';
       try {
-        await api('stories', { method: 'POST', body: { body, media, link } });
+        await api('stories', { method: 'POST', body: { body, media, link, music, music_start: music ? BX.music.ytStart(music) : 0 } });
         modal.remove();
         await loadStories();
         toast('Story publicado!');
@@ -242,6 +246,7 @@
           site_closed: 'O site está fechado para novas publicações.',
           invalid_link: 'O link informado é inválido. Use algo como seusite.com ou https://seusite.com — ou deixe o campo vazio.',
           invalid_story_media: 'A imagem é inválida ou muito grande. Escolha outra foto.',
+          invalid_music: 'Cole um link válido do YouTube para a música.',
           story_empty: 'Adicione uma foto ou escreva um texto.',
           unauthorized: 'Sua sessão expirou. Entre novamente.',
           network: 'Sem conexão. Verifique sua internet e tente de novo.',
@@ -280,6 +285,7 @@
 
   async function renderCurrentStory() {
     clearInterval(progressTimer);
+    BX.music.stop();
     const modal = document.getElementById('story-viewer-modal');
     const group = storyGroups[activeGroup];
     const story = group?.stories[activeStory];
@@ -289,7 +295,8 @@
       <section class="story-viewer" role="dialog" aria-modal="true" aria-label="Story de ${esc(group.user.name)}">
         <div class="story-progress-track">${group.stories.map((_, index) => `<span class="story-progress-segment"><i ${index === activeStory ? 'id="story-progress"' : ''} style="width:${index < activeStory ? '100%' : '0%'}"></i></span>`).join('')}</div>
         <header>${avatar(group.user, 's32')}<div><b>${esc(group.user.name)}</b><small>${ago(story.created_at)}</small></div>${owner ? '<button class="story-viewer-action" type="button" data-story-views>◉ Visualizações</button><button class="story-viewer-action danger" type="button" data-story-delete>Excluir</button>' : ''}<button class="story-close" type="button" aria-label="Fechar">×</button></header>
-        <div class="story-stage">${story.media ? `<img class="story-media" src="${esc(story.media)}" alt="Foto do story">` : '<div class="story-text-only">' + esc(story.body) + '</div>'}${story.media && story.body ? `<p class="story-caption">${esc(story.body)}</p>` : ''}${story.link ? `<a class="story-link" href="${esc(story.link)}" target="_blank" rel="noopener noreferrer">Abrir link ↗</a>` : ''}<button class="story-nav prev" type="button" aria-label="Story anterior">‹</button><button class="story-nav next" type="button" aria-label="Próximo story">›</button></div>
+        <div class="story-stage">${story.media ? `<img class="story-media" src="${esc(story.media)}" alt="Foto do story">` : story.body ? '<div class="story-text-only">' + esc(story.body) + '</div>' : `<div class="story-text-only story-music-only">♪ ${esc(story.music_title || 'Música do story')}</div>`}${story.media && story.body ? `<p class="story-caption">${esc(story.body)}</p>` : ''}${story.link ? `<a class="story-link" href="${esc(story.link)}" target="_blank" rel="noopener noreferrer">Abrir link ↗</a>` : ''}<button class="story-nav prev" type="button" aria-label="Story anterior">‹</button><button class="story-nav next" type="button" aria-label="Próximo story">›</button></div>
+        ${story.music ? `<div class="story-music">${BX.music.html({ id: story.music, title: story.music_title || 'Música do story', start: story.music_start || 0 }, false)}</div>` : ''}
         ${owner ? `<div class="story-owner-meta"><span>${Number(story.view_count || 0)} visualizações</span><button class="story-view-toggle" type="button" data-story-views>Ver quem assistiu</button></div><div class="story-viewers-panel" hidden></div>` : '<div class="story-reply-hint">Story de 24 horas · <a href="' + accountPath(group.user.username) + '">Ver perfil</a></div>'}
       </section>`;
     const viewsPanel = modal.querySelector('.story-viewers-panel');

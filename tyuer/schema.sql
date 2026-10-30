@@ -49,6 +49,9 @@ CREATE TABLE IF NOT EXISTS stories (
   body TEXT NOT NULL DEFAULT '',
   media TEXT NOT NULL DEFAULT '',
   link TEXT NOT NULL DEFAULT '',
+  music TEXT NOT NULL DEFAULT '',
+  music_title TEXT NOT NULL DEFAULT '',
+  music_start INTEGER NOT NULL DEFAULT 0,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   expires_at TIMESTAMPTZ NOT NULL DEFAULT (now() + INTERVAL '24 hours')
 );
@@ -60,6 +63,18 @@ CREATE TABLE IF NOT EXISTS story_views (
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   PRIMARY KEY (story_id, user_id)
 );
+ALTER TABLE story_views ADD COLUMN IF NOT EXISTS user_id INTEGER REFERENCES users(id) ON DELETE CASCADE;
+DO $migration$ DECLARE source_col TEXT; BEGIN
+  SELECT column_name INTO source_col FROM information_schema.columns
+  WHERE table_schema = current_schema() AND table_name = 'story_views'
+    AND column_name IN ('viewer_id', 'viewer_user_id', 'userId', 'viewerId')
+  ORDER BY CASE column_name WHEN 'viewer_id' THEN 1 WHEN 'viewer_user_id' THEN 2 WHEN 'userId' THEN 3 ELSE 4 END
+  LIMIT 1;
+  IF source_col IS NOT NULL THEN
+    EXECUTE format('UPDATE story_views SET user_id = %I WHERE user_id IS NULL', source_col);
+  END IF;
+END; $migration$;
+CREATE UNIQUE INDEX IF NOT EXISTS story_views_story_user_uidx ON story_views (story_id, user_id) WHERE user_id IS NOT NULL;
 
 CREATE TABLE IF NOT EXISTS likes (
   user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,

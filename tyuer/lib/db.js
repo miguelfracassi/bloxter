@@ -86,6 +86,9 @@ async function createAll() {
   await s`ALTER TABLE stories ADD COLUMN IF NOT EXISTS body TEXT NOT NULL DEFAULT ''`;
   await s`ALTER TABLE stories ADD COLUMN IF NOT EXISTS media TEXT NOT NULL DEFAULT ''`;
   await s`ALTER TABLE stories ADD COLUMN IF NOT EXISTS link TEXT NOT NULL DEFAULT ''`;
+  await s`ALTER TABLE stories ADD COLUMN IF NOT EXISTS music TEXT NOT NULL DEFAULT ''`;
+  await s`ALTER TABLE stories ADD COLUMN IF NOT EXISTS music_title TEXT NOT NULL DEFAULT ''`;
+  await s`ALTER TABLE stories ADD COLUMN IF NOT EXISTS music_start INTEGER NOT NULL DEFAULT 0`;
   await s`ALTER TABLE stories ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT now()`;
   await s`ALTER TABLE stories ADD COLUMN IF NOT EXISTS expires_at TIMESTAMPTZ NOT NULL DEFAULT (now() + INTERVAL '24 hours')`;
   await s`CREATE INDEX IF NOT EXISTS stories_active_idx ON stories (expires_at, user_id, id)`;
@@ -95,6 +98,19 @@ async function createAll() {
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     PRIMARY KEY (story_id, user_id)
   )`;
+  // Compatibilidade com instalações antigas em que story_views usava viewer_id.
+  await s`ALTER TABLE story_views ADD COLUMN IF NOT EXISTS user_id INTEGER REFERENCES users(id) ON DELETE CASCADE`;
+  await s`DO $migration$ DECLARE source_col TEXT; BEGIN
+    SELECT column_name INTO source_col FROM information_schema.columns
+    WHERE table_schema = current_schema() AND table_name = 'story_views'
+      AND column_name IN ('viewer_id', 'viewer_user_id', 'userId', 'viewerId')
+    ORDER BY CASE column_name WHEN 'viewer_id' THEN 1 WHEN 'viewer_user_id' THEN 2 WHEN 'userId' THEN 3 ELSE 4 END
+    LIMIT 1;
+    IF source_col IS NOT NULL THEN
+      EXECUTE format('UPDATE story_views SET user_id = %I WHERE user_id IS NULL', source_col);
+    END IF;
+  END; $migration$`;
+  await s`CREATE UNIQUE INDEX IF NOT EXISTS story_views_story_user_uidx ON story_views (story_id, user_id) WHERE user_id IS NOT NULL`;
   await s`CREATE TABLE IF NOT EXISTS likes (
     user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     post_id INTEGER NOT NULL REFERENCES posts(id) ON DELETE CASCADE,

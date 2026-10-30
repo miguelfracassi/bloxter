@@ -1763,7 +1763,7 @@ module.exports = async (req, res) => {
     if (a === 'stories' && !b && method === 'GET') {
       need();
       const rows = await sql`
-        SELECT s.id, s.user_id, s.body, s.media, s.link, s.created_at, s.expires_at,
+        SELECT s.id, s.user_id, s.body, s.media, s.link, s.music, s.music_title, s.music_start, s.created_at, s.expires_at,
           u.username, u.name, u.avatar_v, u.verified,
           EXISTS (SELECT 1 FROM story_views sv WHERE sv.story_id = s.id AND sv.user_id = ${me}) AS viewed,
           (SELECT count(*)::int FROM story_views sv WHERE sv.story_id = s.id) AS view_count
@@ -1772,7 +1772,7 @@ module.exports = async (req, res) => {
           AND (s.user_id = ${me} OR s.user_id IN (SELECT followee_id FROM follows WHERE follower_id = ${me}))
         ORDER BY s.user_id = ${me} DESC, s.created_at ASC`;
       return send({ stories: rows.map((r) => ({
-        id: r.id, body: r.body, media: r.media, link: r.link, created_at: r.created_at, expires_at: r.expires_at,
+        id: r.id, body: r.body, media: r.media, link: r.link, music: r.music, music_title: r.music_title, music_start: r.music_start || 0, created_at: r.created_at, expires_at: r.expires_at,
         viewed: !!r.viewed, view_count: Number(r.view_count),
         user: { id: r.user_id, username: r.username, name: r.name, avatar: avatarUrl(r.user_id, r.avatar_v), verified: !!r.verified },
       })) });
@@ -1786,12 +1786,23 @@ module.exports = async (req, res) => {
       if (media && (!/^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/.test(media) || media.length > 2200000)) {
         throw new HttpError(400, 'invalid_story_media');
       }
-      if (!body && !media) throw new HttpError(400, 'story_empty');
+      const musicRaw = typeof d.music === 'string' ? d.music.trim() : '';
+      const music = musicRaw ? youtubeId(musicRaw) : '';
+      if (musicRaw && !music) throw new HttpError(400, 'invalid_music');
+      let musicTitle = '';
+      if (music) {
+        try {
+          const r = await fetch(`https://www.youtube.com/oembed?format=json&url=${encodeURIComponent(`https://www.youtube.com/watch?v=${music}`)}`, { signal: AbortSignal.timeout(2500) });
+          if (r.ok) musicTitle = String((await r.json()).title || '').slice(0, 100);
+        } catch { /* título opcional */ }
+      }
+      const musicStart = music ? Math.min(14400, Math.max(0, Math.floor(Number(d.music_start) || 0))) : 0;
+      if (!body && !media && !music) throw new HttpError(400, 'story_empty');
       const link = normalizeLink(d.link || '');
       const [story] = await sql`
-        INSERT INTO stories (user_id, body, media, link)
-        VALUES (${me}, ${body}, ${media}, ${link})
-        RETURNING id, body, media, link, created_at, expires_at`;
+        INSERT INTO stories (user_id, body, media, link, music, music_title, music_start)
+        VALUES (${me}, ${body}, ${media}, ${link}, ${music}, ${musicTitle}, ${musicStart})
+        RETURNING id, body, media, link, music, music_title, music_start, created_at, expires_at`;
       return send({ story }, 201);
     }
 

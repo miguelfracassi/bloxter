@@ -381,6 +381,7 @@ img { display: block; max-width: 100%; }
 .story-upload { min-height:116px; border:1px dashed var(--line); border-radius:14px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:4px; cursor:pointer; margin-bottom:16px; background:var(--card); }
 .story-upload-icon { font-size:24px; }
 .story-upload small,.story-compose-counter { color:var(--fg2); font-size:12px; }
+.story-music-hint { display:block; margin-top:5px; color:var(--fg2); font-size:11px; }
 .story-compose-card form>label:not(.story-upload) { display:block; font-size:13px; font-weight:600; margin:12px 0 6px; }
 .story-compose-card textarea,.story-compose-card input[type=url] { width:100%; border:1px solid var(--line); border-radius:12px; background:var(--card); color:var(--fg); padding:12px; outline:none; }
 .story-compose-card textarea { min-height:90px; resize:vertical; }
@@ -495,6 +496,7 @@ img { display: block; max-width: 100%; }
 .story-stage { flex:1; min-height:0; position:relative; display:grid; place-items:center; background:radial-gradient(ellipse at center,#252525,#080808); }
 .story-media { width:100%; height:100%; object-fit:contain; }
 .story-text-only { padding:40px 28px; text-align:center; white-space:pre-wrap; overflow-wrap:anywhere; font-size:clamp(24px,7vw,40px); font-weight:700; }
+.story-music-only { font-size:clamp(26px,8vw,42px); }
 .story-caption { position:absolute; bottom:30px; left:16px; right:16px; padding:12px; border-radius:12px; background:#0009; text-align:center; white-space:pre-wrap; overflow-wrap:anywhere; }
 .story-link { position:absolute; bottom:12px; left:50%; transform:translateX(-50%); border-radius:999px; background:#fff; color:#111; font-size:13px; font-weight:700; padding:10px 16px; white-space:nowrap; }
 .story-nav { position:absolute; top:0; bottom:0; width:22%; font-size:42px; text-shadow:0 1px 8px #000; opacity:.45; }
@@ -504,6 +506,8 @@ img { display: block; max-width: 100%; }
 .story-owner-meta,.story-reply-hint { flex:none; padding:12px 16px; font-size:12px; color:#ddd; display:flex; justify-content:space-between; border-top:1px solid #ffffff22; }
 .story-view-toggle,.story-reply-hint a { text-decoration:underline; }
 .story-viewers-panel { max-height:180px; overflow:auto; padding:10px 14px; background:#171717; }
+.story-music { flex:none; padding:8px 14px; border-top:1px solid #ffffff22; background:rgba(255,255,255,.045); }
+.story-music .post-music { margin:0; }
 .story-viewers-panel h3 { font-size:13px; margin:0 0 8px; }
 .story-viewer-row { display:flex; align-items:center; gap:9px; padding:7px 0; }
 .story-viewer-row span,.story-viewer-row small { display:block; }
@@ -1017,24 +1021,23 @@ img { display: block; max-width: 100%; }
 .rp-done p { color: var(--fg2); font-size: 14px; }
 .rp-check { width: 52px; height: 52px; margin: 0 auto; display: grid; place-items: center; border-radius: 999px; border: 2px solid var(--fg); font-size: 26px; font-weight: 700; }
 
-/* Liquid Glass é uma aparência opcional liberada em Recursos na administração. */
+/* Liquid Glass neutro: superfícies seletivas de vidro fosco em preto/branco. */
 :root[data-appearance='liquid'][data-theme='dark'] {
-  --bg: #080d18;
-  --card: rgba(19, 29, 46, .62);
-  --line: rgba(210, 231, 255, .20);
-  --hover: rgba(195, 222, 255, .10);
-  --shadow: rgba(89, 160, 255, .15);
+  --bg: #050505;
+  --card: rgba(30, 30, 30, .62);
+  --line: rgba(255, 255, 255, .17);
+  --hover: rgba(255, 255, 255, .085);
+  --shadow: rgba(0, 0, 0, .28);
 }
 :root[data-appearance='liquid'][data-theme='light'] {
-  --bg: #eaf2fb;
-  --card: rgba(255, 255, 255, .58);
-  --line: rgba(42, 75, 112, .18);
-  --hover: rgba(255, 255, 255, .70);
-  --shadow: rgba(58, 99, 148, .13);
+  --bg: #f5f5f5;
+  --card: rgba(255, 255, 255, .68);
+  --line: rgba(0, 0, 0, .12);
+  --hover: rgba(255, 255, 255, .78);
+  --shadow: rgba(0, 0, 0, .10);
 }
 :root[data-appearance='liquid'] body {
-  background-image: radial-gradient(ellipse at 15% 0%, rgba(87, 148, 220, .22), transparent 42%),
-    radial-gradient(ellipse at 90% 35%, rgba(118, 91, 196, .15), transparent 38%);
+  background-image: radial-gradient(ellipse at 50% -15%, rgba(255, 255, 255, .075), transparent 50%);
   background-attachment: fixed;
 }
 :root[data-appearance='liquid'] .box,
@@ -1052,9 +1055,9 @@ img { display: block; max-width: 100%; }
 :root[data-appearance='liquid'] .composer .box {
   background-color: var(--card);
   border-color: var(--line);
-  box-shadow: 0 12px 38px var(--shadow), inset 0 1px 0 rgba(255, 255, 255, .12);
-  -webkit-backdrop-filter: blur(20px) saturate(145%);
-  backdrop-filter: blur(20px) saturate(145%);
+  box-shadow: 0 10px 32px var(--shadow), inset 0 1px 0 rgba(255, 255, 255, .16);
+  -webkit-backdrop-filter: blur(18px) saturate(110%);
+  backdrop-filter: blur(18px) saturate(110%);
 }
 :root[data-appearance='liquid'] .post { border-radius: 16px; margin: 8px 0; }
 :root[data-appearance='liquid'] .notif { border: 1px solid var(--line); border-radius: 16px; margin: 8px 0; padding: 12px; }
@@ -1077,14 +1080,14 @@ img { display: block; max-width: 100%; }
   :root[data-appearance='liquid'] .composer .box { background-color: var(--card); }
 }
 
-.bx-glass-invite { position:fixed; inset:0; z-index:1600; display:grid; place-items:center; padding:18px; background:rgba(2,8,18,.58); -webkit-backdrop-filter:blur(18px); backdrop-filter:blur(18px); }
-.bx-glass-invite-card { position:relative; isolation:isolate; overflow:hidden; width:min(100%,480px); padding:clamp(24px,6vw,36px); border:1px solid rgba(220,240,255,.32); border-radius:30px; color:#fff; background:linear-gradient(140deg,rgba(70,117,171,.78),rgba(23,38,66,.74) 55%,rgba(70,57,111,.75)); box-shadow:0 30px 100px rgba(0,0,0,.45),inset 0 1px 0 rgba(255,255,255,.25); -webkit-backdrop-filter:blur(30px) saturate(160%); backdrop-filter:blur(30px) saturate(160%); }
+.bx-glass-invite { position:fixed; inset:0; z-index:1600; display:grid; place-items:center; padding:18px; background:rgba(0,0,0,.58); -webkit-backdrop-filter:blur(18px); backdrop-filter:blur(18px); }
+.bx-glass-invite-card { position:relative; isolation:isolate; overflow:hidden; width:min(100%,480px); padding:clamp(24px,6vw,36px); border:1px solid rgba(255,255,255,.26); border-radius:30px; color:#fff; background:linear-gradient(140deg,rgba(48,48,48,.82),rgba(12,12,12,.78) 58%,rgba(35,35,35,.82)); box-shadow:0 30px 100px rgba(0,0,0,.45),inset 0 1px 0 rgba(255,255,255,.25); -webkit-backdrop-filter:blur(30px) saturate(110%); backdrop-filter:blur(30px) saturate(110%); }
 .bx-glass-invite-card::before,.bx-glass-invite-card::after { position:absolute; z-index:-1; content:""; width:210px; height:210px; border-radius:50%; filter:blur(4px); opacity:.5; }
-.bx-glass-invite-card::before { background:radial-gradient(circle at 35% 35%,#fff9,#97c6ff55 55%,transparent 72%); top:-98px; right:-55px; }
-.bx-glass-invite-card::after { background:radial-gradient(circle at 45% 45%,#ff9b7166,#9b8eff55 57%,transparent 75%); bottom:-130px; left:-80px; }
+.bx-glass-invite-card::before { background:radial-gradient(circle at 35% 35%,#ffffff50,#ffffff18 55%,transparent 72%); top:-98px; right:-55px; }
+.bx-glass-invite-card::after { background:radial-gradient(circle at 45% 45%,#ffffff20,#ffffff08 57%,transparent 75%); bottom:-130px; left:-80px; }
 .bx-glass-orb { display:grid; place-items:center; width:52px; height:52px; margin-bottom:22px; border:1px solid #ffffff66; border-radius:18px; color:#fff; font-size:38px; line-height:1; background:linear-gradient(145deg,#ffffff3d,#ffffff08); box-shadow:inset 0 1px #ffffff77,0 12px 30px #0002; }
 .bx-glass-invite-card h2 { margin:0 0 10px; font-size:clamp(23px,5vw,30px); line-height:1.18; letter-spacing:-.035em; }
-.bx-glass-invite-card p { margin:0; color:#f1f6ffdc; font-size:14px; line-height:1.65; }
+.bx-glass-invite-card p { margin:0; color:#f2f2f2; font-size:14px; line-height:1.65; }
 .bx-glass-invite-card a { color:#fff; text-decoration:underline; text-underline-offset:3px; }
 .bx-glass-actions { display:flex; gap:10px; margin-top:26px; }
 .bx-glass-actions > * { flex:1; }
