@@ -1420,18 +1420,37 @@ module.exports = async (req, res) => {
       if (b === 'discord-components' && !c && method === 'POST') {
         const d0 = readBody(req);
         const channelId = str(d0.channel_id, 25);
-        const body = str(d0.body, 4000);
-        const image = typeof d0.image === 'string' ? d0.image : '';
-        const spacing = d0.separator_spacing === 'large' ? 'large' : 'small';
-        const separator = d0.separator !== false;
+        const components = Array.isArray(d0.components) ? d0.components : [];
+        if (!components.length && (d0.body || d0.image)) components.push(
+          ...(d0.image ? [{ type: 'image', image: d0.image }] : []),
+          ...(d0.separator !== false ? [{ type: 'separator', spacing: d0.separator_spacing === 'large' ? 'large' : 'small' }] : []),
+          ...(d0.body ? [{ type: 'text', text: d0.body }] : []),
+        );
+        if (components.length > 20) throw new HttpError(400, 'too_many_components');
+        let imageBytes = 0;
+        const normalized = components.map((part) => {
+          if (!part || typeof part !== 'object') throw new HttpError(400, 'invalid_component');
+          if (part.type === 'text') {
+            const text = str(part.text, 4000);
+            if (!text) throw new HttpError(400, 'empty_component_text');
+            return { type: 'text', text };
+          }
+          if (part.type === 'separator') return { type: 'separator', spacing: part.spacing === 'large' ? 'large' : 'small' };
+          if (part.type === 'image') {
+            const image = typeof part.image === 'string' ? part.image : '';
+            if (!/^data:image\/(png|jpeg|webp|gif);base64,[A-Za-z0-9+/]+={0,2}$/.test(image)) throw new HttpError(400, 'invalid_discord_image');
+            imageBytes += image.length;
+            if (imageBytes > 3800000) throw new HttpError(400, 'discord_images_too_large');
+            return { type: 'image', image };
+          }
+          throw new HttpError(400, 'invalid_component_type');
+        });
         if (!/^\d{17,20}$/.test(channelId)) throw new HttpError(400, 'invalid_discord_channel');
-        if (image && (image.length > 3800000 || !/^data:image\/(png|jpeg|webp|gif);base64,[A-Za-z0-9+/]+={0,2}$/.test(image))) {
-          throw new HttpError(400, 'invalid_discord_image');
-        }
-        if (!body && !image) throw new HttpError(400, 'component_empty');
+        if (!normalized.length || !normalized.some((part) => part.type === 'text' || part.type === 'image')) throw new HttpError(400, 'component_empty');
+        const body = normalized.filter((part) => part.type === 'text').map((part) => part.text).join('\n');
         const [item] = await sql`
-          INSERT INTO discord_component_queue (channel_id, body, image_data, separator, separator_spacing)
-          VALUES (${channelId}, ${body}, ${image}, ${separator}, ${spacing})
+          INSERT INTO discord_component_queue (channel_id, body, components, separator)
+          VALUES (${channelId}, ${body}, ${JSON.stringify(normalized)}::jsonb, ${normalized.some((part) => part.type === 'separator')})
           RETURNING id, channel_id, body, separator, separator_spacing, status, created_at`;
         return send({ item }, 201);
       }
@@ -1450,7 +1469,7 @@ module.exports = async (req, res) => {
             WHERE status = 'queued' OR (status = 'sending' AND updated_at < now() - interval '3 minutes')
             ORDER BY id LIMIT ${limit} FOR UPDATE SKIP LOCKED
           )
-          RETURNING id, channel_id, body, image_data, separator, separator_spacing`;
+          RETURNING id, channel_id, body, image_data, components, separator, separator_spacing`;
         return send({ items });
       }
       if (b === 'discord-components' && c && d === 'complete' && method === 'POST') {

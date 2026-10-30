@@ -200,6 +200,7 @@ CREATE TABLE IF NOT EXISTS discord_component_queue (
   channel_id TEXT NOT NULL,
   body TEXT NOT NULL DEFAULT '',
   image_data TEXT NOT NULL DEFAULT '',
+  components JSONB NOT NULL DEFAULT '[]'::jsonb,
   separator BOOLEAN NOT NULL DEFAULT true,
   separator_spacing TEXT NOT NULL DEFAULT 'small' CHECK (separator_spacing IN ('small','large')),
   status TEXT NOT NULL DEFAULT 'queued' CHECK (status IN ('queued','sending','sent','failed')),

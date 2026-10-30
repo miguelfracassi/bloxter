@@ -853,7 +853,9 @@
 
   function discordComponentsModule() {
     const box = document.getElementById('discord-components-box');
-    let imageData = '';
+    let blocks = [];
+    let nextBlock = 1;
+    let dragId = null;
     const statusName = { queued: 'Na fila', sending: 'Enviando', sent: 'Enviado', failed: 'Falhou' };
     const stamp = (value) => value ? new Date(value).toLocaleString('pt-BR') : '—';
     const dataUrl = (blob) => new Promise((resolve, reject) => {
@@ -878,6 +880,29 @@
       if (!blob || blob.size > 2700000) throw new Error('A imagem continua muito grande depois da compressão.');
       return dataUrl(blob);
     }
+    function renderPreview() {
+      const preview = box.querySelector('#dc-preview');
+      if (!preview) return;
+      preview.innerHTML = blocks.map((part) => part.type === 'text'
+        ? `<div style="white-space:pre-wrap;overflow-wrap:anywhere">${esc(part.text || 'Seu texto aparecerá aqui')}</div>`
+        : part.type === 'separator'
+          ? `<div style="height:${part.spacing === 'large' ? 30 : 16}px;display:flex;align-items:center"><hr style="width:100%;border:0;border-top:1px solid var(--line)" /></div>`
+          : part.image ? `<img src="${part.image}" alt="Imagem do componente" style="display:block;max-width:100%;max-height:300px;object-fit:contain;border-radius:10px" />` : '<div class="empty">Imagem ainda não escolhida</div>').join('') || '<div class="empty">Adicione blocos e arraste para montar a ordem da mensagem.</div>';
+    }
+    function renderBlocks() {
+      const canvas = box.querySelector('#dc-canvas');
+      if (!canvas) return;
+      canvas.innerHTML = blocks.map((part, index) => `<article class="u" draggable="true" data-block-id="${part.id}" style="cursor:grab;touch-action:pan-y">
+        <div class="uh" style="align-items:flex-start;gap:10px"><span aria-hidden="true" style="font-size:20px;cursor:grab">⠿</span><div class="info" style="flex:1;min-width:0">
+          <b>${part.type === 'text' ? 'Texto' : part.type === 'image' ? 'Imagem' : 'Linha separadora'}</b>
+          ${part.type === 'text' ? `<textarea class="ta" data-edit-text="${part.id}" maxlength="4000" rows="3" placeholder="Escreva o texto">${esc(part.text || '')}</textarea>` : ''}
+          ${part.type === 'image' ? `<input type="file" data-edit-image="${part.id}" accept="image/png,image/jpeg,image/webp,image/gif" /><span class="h">${part.image ? 'Imagem adicionada' : 'Escolha uma imagem'}</span>` : ''}
+          ${part.type === 'separator' ? `<select class="ta" data-edit-spacing="${part.id}"><option value="small" ${part.spacing !== 'large' ? 'selected' : ''}>Espaçamento normal</option><option value="large" ${part.spacing === 'large' ? 'selected' : ''}>Espaçamento amplo</option></select>` : ''}
+        </div><div style="display:grid;gap:5px"><button class="btn ghost sm" type="button" data-move-up="${part.id}" ${index === 0 ? 'disabled' : ''} aria-label="Mover para cima">↑</button><button class="btn ghost sm" type="button" data-move-down="${part.id}" ${index === blocks.length - 1 ? 'disabled' : ''} aria-label="Mover para baixo">↓</button><button class="btn ghost sm" type="button" data-remove-block="${part.id}">Remover</button></div></div>
+      </article>`).join('') || '<div class="empty">Ainda não há blocos na mensagem.</div>';
+      renderPreview();
+    }
+    function addBlock(type) { blocks.push({ id: `b${nextBlock++}`, type, text: '', image: '', spacing: 'small' }); renderBlocks(); }
     function drawQueue(items) {
       const list = box.querySelector('#discord-components-queue');
       if (!list) return;
@@ -893,59 +918,61 @@
     }
     async function render() {
       box.innerHTML = `<h2 style="font-size:17px;margin:0 0 4px">Criar componente Discord V2</h2>
-        <p class="sub" style="margin:0 0 14px">Monte a mensagem aqui. O bot envia imagem, separador e texto ao canal selecionado.</p>
-        <form id="discord-components-form" style="display:grid;gap:12px">
-          <label>Canal do Discord (ID)<input type="text" id="dc-channel" inputmode="numeric" placeholder="Ex.: 123456789012345678" required maxlength="25" /></label>
-          <label>Imagem (opcional)<input type="file" id="dc-image" accept="image/png,image/jpeg,image/webp,image/gif" /></label>
-          <div id="dc-image-preview-wrap" hidden><img id="dc-image-preview" alt="Prévia da imagem" style="max-width:100%;max-height:260px;object-fit:contain;border-radius:12px;border:1px solid var(--line)" /><button type="button" class="btn ghost sm" id="dc-image-remove" style="margin-top:8px">Remover imagem</button></div>
-          <label>Texto (opcional)<textarea class="ta" id="dc-body" maxlength="4000" rows="4" placeholder="Escreva o texto que vai aparecer junto da imagem"></textarea></label>
-          <label class="chk"><input type="checkbox" id="dc-separator" checked /> Adicionar linha separadora entre a imagem e o texto</label>
-          <label>Espaçamento da linha<select class="ta" id="dc-spacing"><option value="small">Normal</option><option value="large">Amplo</option></select></label>
-          <p class="count" style="margin:-6px 0 0">No Discord, a linha ocupa a largura do contêiner; “Amplo” aumenta o espaço vertical ao redor dela.</p>
-          <div class="row"><button class="btn" type="submit" id="dc-send">Enviar pelo bot</button><span class="live" id="dc-status" role="status"></span></div>
-        </form>
+        <p class="sub" style="margin:0 0 14px">Adicione blocos e arraste-os para qualquer posição na ordem da mensagem. Você pode reorganizar ou editar tudo antes de enviar.</p>
+        <label>Canal do Discord (ID)<input type="text" id="dc-channel" inputmode="numeric" placeholder="Ex.: 123456789012345678" maxlength="25" /></label>
+        <div class="row" style="margin:12px 0"><button class="btn ghost sm" type="button" data-add-block="text">+ Texto</button><button class="btn ghost sm" type="button" data-add-block="image">+ Imagem</button><button class="btn ghost sm" type="button" data-add-block="separator">+ Separador</button></div>
+        <p class="count">Arraste pelo símbolo ⠿ e solte acima ou abaixo de outro bloco. No celular, use as setas.</p>
+        <div id="dc-canvas" style="display:grid;gap:8px;min-height:70px"></div>
+        <h3 style="font-size:15px;margin:18px 0 8px">Prévia</h3><div id="dc-preview" class="box" style="display:grid;gap:8px;min-height:52px"></div>
+        <div class="row" style="margin-top:14px"><button class="btn" type="button" id="dc-send">Enviar pelo bot</button><span class="live" id="dc-status" role="status"></span></div>
         <div class="row" style="justify-content:space-between;margin-top:22px"><h3 style="font-size:15px;margin:0">Envios recentes</h3><button class="btn ghost sm" type="button" id="dc-refresh">Atualizar</button></div>
         <div id="discord-components-queue"><div class="empty">Carregando...</div></div>`;
-      const form = box.querySelector('#discord-components-form');
-      const fileInput = box.querySelector('#dc-image');
-      const previewWrap = box.querySelector('#dc-image-preview-wrap');
-      const preview = box.querySelector('#dc-image-preview');
       const status = box.querySelector('#dc-status');
       box.querySelector('#dc-refresh').addEventListener('click', refreshQueue);
-      box.querySelector('#dc-separator').addEventListener('change', (e) => { box.querySelector('#dc-spacing').disabled = !e.target.checked; });
-      box.querySelector('#dc-image-remove').addEventListener('click', () => {
-        imageData = ''; fileInput.value = ''; preview.removeAttribute('src'); previewWrap.hidden = true;
+      box.querySelectorAll('[data-add-block]').forEach((button) => button.addEventListener('click', () => addBlock(button.dataset.addBlock)));
+      const canvas = box.querySelector('#dc-canvas');
+      canvas.addEventListener('input', (e) => { const part = blocks.find((item) => item.id === e.target.dataset.editText); if (part) { part.text = e.target.value; renderPreview(); } });
+      canvas.addEventListener('change', async (e) => {
+        const part = blocks.find((item) => item.id === e.target.dataset.editImage);
+        if (part && e.target.files?.[0]) { status.textContent = 'Preparando imagem…'; try { part.image = await prepararImagem(e.target.files[0]); status.textContent = 'Imagem pronta.'; renderBlocks(); } catch (err) { status.textContent = err.message || 'Não consegui preparar a imagem.'; } }
+        const separator = blocks.find((item) => item.id === e.target.dataset.editSpacing); if (separator) { separator.spacing = e.target.value; renderPreview(); }
       });
-      fileInput.addEventListener('change', async () => {
-        const file = fileInput.files && fileInput.files[0];
-        if (!file) return;
-        status.textContent = 'Preparando imagem…';
-        try {
-          imageData = await prepararImagem(file);
-          preview.src = imageData; previewWrap.hidden = false; status.textContent = 'Imagem pronta.';
-        } catch (e) { imageData = ''; fileInput.value = ''; status.textContent = e.message || 'Não consegui preparar a imagem.'; }
+      canvas.addEventListener('click', (e) => {
+        const remove = e.target.closest('[data-remove-block]');
+        const up = e.target.closest('[data-move-up]');
+        const down = e.target.closest('[data-move-down]');
+        if (remove) blocks = blocks.filter((part) => part.id !== remove.dataset.removeBlock);
+        if (up || down) { const id = (up || down).dataset[up ? 'moveUp' : 'moveDown']; const i = blocks.findIndex((part) => part.id === id); const j = i + (up ? -1 : 1); if (i >= 0 && j >= 0 && j < blocks.length) [blocks[i], blocks[j]] = [blocks[j], blocks[i]]; }
+        if (remove || up || down) renderBlocks();
       });
-      form.addEventListener('submit', async (e) => {
-        e.preventDefault();
+      canvas.addEventListener('dragstart', (e) => { const card = e.target.closest('[data-block-id]'); if (!card) return; dragId = card.dataset.blockId; e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', dragId); });
+      canvas.addEventListener('dragover', (e) => { if (e.target.closest('[data-block-id]')) { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; } });
+      canvas.addEventListener('drop', (e) => {
+        const target = e.target.closest('[data-block-id]'); if (!target) return; e.preventDefault();
+        const from = blocks.findIndex((part) => part.id === (dragId || e.dataTransfer.getData('text/plain'))), to = blocks.findIndex((part) => part.id === target.dataset.blockId);
+        if (from < 0 || to < 0 || from === to) return;
+        const [part] = blocks.splice(from, 1); const rect = target.getBoundingClientRect(); const insertAt = to + (e.clientY > rect.top + rect.height / 2 ? 1 : 0); blocks.splice(insertAt > from ? insertAt - 1 : insertAt, 0, part); dragId = null; renderBlocks();
+      });
+      box.querySelector('#dc-send').addEventListener('click', async () => {
         const send = box.querySelector('#dc-send');
-        const body = box.querySelector('#dc-body').value.trim();
-        if (!imageData && !body) { status.textContent = 'Adicione uma imagem ou escreva um texto.'; return; }
+        const channelId = box.querySelector('#dc-channel').value.trim();
+        const components = blocks.map((part) => part.type === 'text' ? { type: part.type, text: part.text.trim() } : part.type === 'image' ? { type: part.type, image: part.image } : { type: part.type, spacing: part.spacing });
+        if (!/^\d{17,20}$/.test(channelId)) { status.textContent = 'Informe um ID de canal válido do Discord.'; return; }
+        if (!components.some((part) => part.type === 'text' && part.text || part.type === 'image' && part.image)) { status.textContent = 'Adicione texto ou uma imagem.'; return; }
         send.disabled = true; status.textContent = 'Adicionando à fila…';
         try {
           const data = await api('admin/discord-components', 'POST', {
-            channel_id: box.querySelector('#dc-channel').value.trim(), body, image: imageData,
-            separator: box.querySelector('#dc-separator').checked,
-            separator_spacing: box.querySelector('#dc-spacing').value,
+            channel_id: channelId, components,
           });
           status.textContent = `Componente #${data.item.id} adicionado à fila do bot.`;
-          form.reset(); imageData = ''; preview.removeAttribute('src'); previewWrap.hidden = true;
-          box.querySelector('#dc-separator').checked = true; box.querySelector('#dc-spacing').disabled = false;
+          blocks = []; box.querySelector('#dc-channel').value = ''; renderBlocks();
           await refreshQueue();
         } catch (e) {
           if (e.status === 401) return loginView();
           status.textContent = e.message || 'Não consegui colocar o componente na fila.';
         } finally { send.disabled = false; }
       });
+      renderBlocks();
       await refreshQueue();
     }
     return { open: render };

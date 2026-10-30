@@ -282,6 +282,7 @@ async function createAll() {
     channel_id TEXT NOT NULL,
     body TEXT NOT NULL DEFAULT '',
     image_data TEXT NOT NULL DEFAULT '',
+    components JSONB NOT NULL DEFAULT '[]'::jsonb,
     separator BOOLEAN NOT NULL DEFAULT true,
     separator_spacing TEXT NOT NULL DEFAULT 'small' CHECK (separator_spacing IN ('small','large')),
     status TEXT NOT NULL DEFAULT 'queued' CHECK (status IN ('queued','sending','sent','failed')),
@@ -291,6 +292,7 @@ async function createAll() {
     sent_at TIMESTAMPTZ
   )`;
   await s`CREATE INDEX IF NOT EXISTS discord_component_queue_idx ON discord_component_queue (status, id)`;
+  await s`ALTER TABLE discord_component_queue ADD COLUMN IF NOT EXISTS components JSONB NOT NULL DEFAULT '[]'::jsonb`;
   // Migra instalações antigas em que site_settings usava nomes como key/value.
   // CREATE TABLE IF NOT EXISTS não altera uma tabela já existente.
   await s`ALTER TABLE site_settings ADD COLUMN IF NOT EXISTS setting_key TEXT`;
