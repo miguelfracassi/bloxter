@@ -1,0 +1,25 @@
+{
+  "id": "/",
+  "name": "Bloxter",
+  "short_name": "Bloxter",
+  "description": "A rede social feita para quem vive o roleplay.",
+  "lang": "pt-BR",
+  "dir": "ltr",
+  "start_url": "/home?source=pwa",
+  "scope": "/",
+  "display": "standalone",
+  "display_override": ["standalone", "minimal-ui"],
+  "background_color": "#000000",
+  "theme_color": "#000000",
+  "categories": ["social"],
+  "icons": [
+    { "src": "/icon-192.png?v=202610287732", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icon-512.png?v=202610287732", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/icon-maskable-512.png?v=202610287732", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    { "name": "Buscar", "short_name": "Buscar", "url": "/search?source=shortcut", "icons": [{ "src": "/icon-192.png?v=202610287732", "sizes": "192x192", "type": "image/png" }] },
+    { "name": "Mensagens", "short_name": "Mensagens", "url": "/messages?source=shortcut", "icons": [{ "src": "/icon-192.png?v=202610287732", "sizes": "192x192", "type": "image/png" }] },
+    { "name": "Configurações", "short_name": "Ajustes", "url": "/settings?source=shortcut", "icons": [{ "src": "/icon-192.png?v=202610287732", "sizes": "192x192", "type": "image/png" }] }
+  ]
+}
