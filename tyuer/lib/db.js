@@ -313,7 +313,30 @@ async function createAll() {
   await s`ALTER TABLE users ADD COLUMN IF NOT EXISTS banned_at TIMESTAMPTZ`;
   await s`ALTER TABLE users ADD COLUMN IF NOT EXISTS ban_reason TEXT NOT NULL DEFAULT ''`;
   // Recursos liberados pela administração (começam bloqueados; "Liberar" em /administracao muda para 'true' e vale para todos).
-  await s`INSERT INTO site_settings (setting_key, setting_value) VALUES ('feature_comments', 'false'), ('feature_likes', 'false'), ('feature_hashtags', 'false'), ('feature_discord', 'false'), ('feature_liquid_glass', 'false') ON CONFLICT (setting_key) DO NOTHING`;
+  await s`INSERT INTO site_settings (setting_key, setting_value) VALUES ('feature_comments', 'false'), ('feature_likes', 'false'), ('feature_hashtags', 'false'), ('feature_discord', 'false'), ('feature_liquid_glass', 'false'), ('liquid_glass_prompt_enabled', 'false') ON CONFLICT (setting_key) DO NOTHING`;
+  // Registro server-side para conceder o selo depois de dois dias com post + interação.
+  await s`CREATE TABLE IF NOT EXISTS user_verification_days (
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    activity_day DATE NOT NULL,
+    posted BOOLEAN NOT NULL DEFAULT false,
+    interacted BOOLEAN NOT NULL DEFAULT false,
+    PRIMARY KEY (user_id, activity_day)
+  )`;
+  await s`CREATE INDEX IF NOT EXISTS user_verification_days_eligible_idx ON user_verification_days (user_id, activity_day) WHERE posted AND interacted`;
+  await s`CREATE TABLE IF NOT EXISTS user_verification_state (
+    user_id INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+    app_installed_at TIMESTAMPTZ,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+  )`;
+  // Importa atividade anterior para que contas já ativas não precisem recomeçar do zero.
+  await s`INSERT INTO user_verification_days (user_id, activity_day, posted, interacted)
+    SELECT user_id, activity_day, bool_or(kind = 'post'), bool_or(kind = 'interaction') FROM (
+      SELECT user_id, created_at::date AS activity_day, 'post' AS kind FROM posts
+      UNION ALL SELECT user_id, created_at::date, 'interaction' FROM comments
+      UNION ALL SELECT user_id, created_at::date, 'interaction' FROM reposts
+      UNION ALL SELECT follower_id, created_at::date, 'interaction' FROM follows
+    ) AS activity GROUP BY user_id, activity_day
+    ON CONFLICT (user_id, activity_day) DO UPDATE SET posted = user_verification_days.posted OR EXCLUDED.posted, interacted = user_verification_days.interacted OR EXCLUDED.interacted`;
   await s`CREATE TABLE IF NOT EXISTS notifications (
     id SERIAL PRIMARY KEY,
     user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,

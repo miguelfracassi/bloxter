@@ -242,6 +242,14 @@ module.exports = async (req, res) => {
       if (!me) throw new HttpError(401, 'unauthorized');
       return me;
     };
+    const recordVerificationDay = async (userId, activity) => {
+      const posted = activity === 'post';
+      await sql`INSERT INTO user_verification_days (user_id, activity_day, posted, interacted)
+        VALUES (${userId}, CURRENT_DATE, ${posted}, ${!posted})
+        ON CONFLICT (user_id, activity_day) DO UPDATE SET
+          posted = user_verification_days.posted OR EXCLUDED.posted,
+          interacted = user_verification_days.interacted OR EXCLUDED.interacted`;
+    };
     const send = (data, status = 200) => res.status(status).json(data);
     // Valida o id de um post e devolve { id, user_id } (404 se não existir).
     const findPost = async (raw) => {
@@ -268,10 +276,10 @@ module.exports = async (req, res) => {
       return { show_position: v.onboarding_show_position !== 'false', show_questions: v.onboarding_show_questions !== 'false' };
     };
 
-    // Banner "Seja verificado" (desligado por padrão; o administrador liga em /administracao).
+    // Trilha "Seja verificado" (ligada por padrão; o administrador pode desligá-la em /administracao).
     const verifiedBannerEnabled = async () => {
       const [row] = await sql`SELECT setting_value FROM site_settings WHERE setting_key = 'verified_banner_enabled'`;
-      return !!row && row.setting_value === 'true';
+      return !row || row.setting_value !== 'false';
     };
 
     // Selo "New" em Notificações + tour de primeiro acesso (ligado por padrão; o administrador retira em /administracao).
@@ -611,10 +619,10 @@ module.exports = async (req, res) => {
     }
 
     if (a === 'site' && b === 'status' && method === 'GET') {
-      const settings = await sql`SELECT setting_key, setting_value FROM site_settings WHERE setting_key IN ('access_open','maintenance_enabled','maintenance_responsible','maintenance_reason','maintenance_updates')`;
+      const settings = await sql`SELECT setting_key, setting_value FROM site_settings WHERE setting_key IN ('access_open','liquid_glass_prompt_enabled','maintenance_enabled','maintenance_responsible','maintenance_reason','maintenance_updates')`;
       const values = Object.fromEntries(settings.map((row) => [row.setting_key, row.setting_value]));
       res.setHeader('Cache-Control', 'no-store');
-      return send({ features: await featuresFor(), access_open: values.access_open === 'true', admin_bypass: isAdminPreview(req), opening: '25/10 às 20:00', maintenance: { enabled: values.maintenance_enabled === 'true', responsible: values.maintenance_responsible || 'Equipe Bloxter', reason: values.maintenance_reason || 'Atualizações', updates: values.maintenance_updates || '' } });
+      return send({ features: await featuresFor(), access_open: values.access_open === 'true', liquid_glass_prompt: values.liquid_glass_prompt_enabled === 'true', admin_bypass: isAdminPreview(req), opening: '25/10 às 20:00', maintenance: { enabled: values.maintenance_enabled === 'true', responsible: values.maintenance_responsible || 'Equipe Bloxter', reason: values.maintenance_reason || 'Atualizações', updates: values.maintenance_updates || '' } });
     }
 
     // Comentário -> JSON. "author_liked": o dono do post curtiu (aparece a foto dele + coração).
@@ -884,6 +892,40 @@ module.exports = async (req, res) => {
       try { await sql`DELETE FROM notifications WHERE user_id = ${to} AND actor_id = ${me} AND type = ${type} AND post_id IS NOT DISTINCT FROM ${postId}::int AND comment_id IS NOT DISTINCT FROM ${commentId}::int`; } catch { /* ignore */ }
     };
 
+    const verificationProgress = async (uid) => {
+      const [[days], [install], [push], [account]] = await Promise.all([
+        sql`SELECT count(*)::int AS active_days FROM user_verification_days WHERE user_id = ${uid} AND posted AND interacted`,
+        sql`SELECT app_installed_at FROM user_verification_state WHERE user_id = ${uid}`,
+        sql`SELECT EXISTS (SELECT 1 FROM push_subscriptions WHERE user_id = ${uid}) AS enabled`,
+        sql`SELECT verified FROM users WHERE id = ${uid}`,
+      ]);
+      return {
+        enabled: await verifiedBannerEnabled(), active_days: Math.min(2, Number(days && days.active_days) || 0),
+        required_days: 2, app_installed: !!(install && install.app_installed_at),
+        push_enabled: !!(push && push.enabled), verified: !!(account && account.verified),
+      };
+    };
+    const maybeCompleteVerification = async (uid) => {
+      const progress = await verificationProgress(uid);
+      if (!progress.enabled || progress.verified || progress.active_days < 2 || !progress.app_installed || !progress.push_enabled) return progress;
+      const [awarded] = await sql`UPDATE users SET verified = true WHERE id = ${uid} AND verified = false RETURNING id`;
+      if (!awarded) return verificationProgress(uid);
+      const message = 'Sua conta recebeu o selo de verificado. Obrigado por participar do Bloxter e manter as notificações ativadas!';
+      await sql`INSERT INTO notifications (user_id, actor_id, type, body) VALUES (${uid}, ${uid}, 'verification', ${message})`;
+      try {
+        const subs = await sql`SELECT id, endpoint, p256dh, auth FROM push_subscriptions WHERE user_id = ${uid}`;
+        if (subs.length) {
+          const webpush = pushLib(); const vapid = await getVapid();
+          webpush.setVapidDetails(process.env.VAPID_SUBJECT || siteOrigin(), vapid.publicKey, vapid.privateKey);
+          const payload = JSON.stringify({ title: 'Bloxter', body: 'Sua conta foi verificada! Confira as novidades em Notificações.', url: '/notifications' });
+          const results = await Promise.allSettled(subs.map((sub) => webpush.sendNotification({ endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } }, payload, { TTL: 86400, urgency: 'high' })));
+          const gone = results.flatMap((result, index) => result.status === 'rejected' && [404, 410].includes(result.reason && result.reason.statusCode) ? [subs[index].id] : []);
+          if (gone.length) await sql`DELETE FROM push_subscriptions WHERE id = ANY(${gone}::int[])`;
+        }
+      } catch { /* o selo e o aviso interno não dependem do push */ }
+      return verificationProgress(uid);
+    };
+
     if (a === 'push' && b === 'key' && method === 'GET') {
       return send({ key: (await getVapid()).publicKey });
     }
@@ -899,7 +941,7 @@ module.exports = async (req, res) => {
       await sql`
         INSERT INTO push_subscriptions (user_id, endpoint, p256dh, auth, device) VALUES (${uid}, ${endpoint}, ${p256dh}, ${auth}, ${device})
         ON CONFLICT (endpoint) DO UPDATE SET user_id = EXCLUDED.user_id, p256dh = EXCLUDED.p256dh, auth = EXCLUDED.auth, device = EXCLUDED.device, updated_at = now()`;
-      return send({ ok: true });
+      return send({ ok: true, verification: await maybeCompleteVerification(uid) });
     }
 
     // ---------- ADMIN (/verificacao) ----------
@@ -1322,14 +1364,25 @@ module.exports = async (req, res) => {
         return send({ enabled: d.enabled });
       }
       if (b === 'site-access' && method === 'GET') {
-        const [setting] = await sql`SELECT setting_value FROM site_settings WHERE setting_key = 'access_open'`;
-        return send({ access_open: setting ? setting.setting_value === 'true' : false });
+        const rows = await sql`SELECT setting_key, setting_value FROM site_settings WHERE setting_key IN ('access_open','liquid_glass_prompt_enabled')`;
+        const settings = Object.fromEntries(rows.map((row) => [row.setting_key, row.setting_value]));
+        return send({ access_open: settings.access_open === 'true', liquid_glass_prompt: settings.liquid_glass_prompt_enabled === 'true' });
       }
       if (b === 'site-access' && method === 'PATCH') {
         const d = readBody(req);
-        if (typeof d.access_open !== 'boolean') throw new HttpError(400, 'invalid_setting');
-        const [setting] = await sql`UPDATE site_settings SET setting_value = ${String(d.access_open)} WHERE setting_key = 'access_open' RETURNING setting_value`;
-        return send({ access_open: setting.setting_value === 'true' });
+        if (typeof d.access_open === 'boolean') await sql`INSERT INTO site_settings (setting_key, setting_value) VALUES ('access_open', ${String(d.access_open)}) ON CONFLICT (setting_key) DO UPDATE SET setting_value = EXCLUDED.setting_value`;
+        if (typeof d.liquid_glass_prompt === 'boolean') {
+          await sql`INSERT INTO site_settings (setting_key, setting_value) VALUES ('liquid_glass_prompt_enabled', ${String(d.liquid_glass_prompt)}) ON CONFLICT (setting_key) DO UPDATE SET setting_value = EXCLUDED.setting_value`;
+          if (d.liquid_glass_prompt) {
+            const [feature] = await sql`SELECT setting_value FROM site_settings WHERE setting_key = 'feature_liquid_glass'`;
+            await sql`INSERT INTO site_settings (setting_key, setting_value) VALUES ('feature_liquid_glass', 'true') ON CONFLICT (setting_key) DO UPDATE SET setting_value = 'true'`;
+            if (!feature || feature.setting_value !== 'true') await sql`INSERT INTO site_settings (setting_key, setting_value) VALUES ('feature_liquid_glass_at', ${new Date().toISOString()}) ON CONFLICT (setting_key) DO UPDATE SET setting_value = EXCLUDED.setting_value`;
+          }
+        }
+        if (typeof d.access_open !== 'boolean' && typeof d.liquid_glass_prompt !== 'boolean') throw new HttpError(400, 'invalid_setting');
+        const rows = await sql`SELECT setting_key, setting_value FROM site_settings WHERE setting_key IN ('access_open','liquid_glass_prompt_enabled')`;
+        const settings = Object.fromEntries(rows.map((row) => [row.setting_key, row.setting_value]));
+        return send({ access_open: settings.access_open === 'true', liquid_glass_prompt: settings.liquid_glass_prompt_enabled === 'true' });
       }
 
       // ---------- Posts fixados ----------
@@ -1893,21 +1946,29 @@ module.exports = async (req, res) => {
       return send({ ok: true });
     }
 
-    // ---------- BANNER "SEJA VERIFICADO" ----------
-    // O banner só aparece (e o clique só vale) enquanto o administrador deixar ligado.
+    // ---------- PROGRESSO DE VERIFICAÇÃO ----------
+    // O selo é automático somente quando os requisitos reais são concluídos.
+    if (a === 'me' && b === 'verification' && c === 'install' && method === 'POST') {
+      need();
+      await sql`INSERT INTO user_verification_state (user_id, app_installed_at) VALUES (${me}, now())
+        ON CONFLICT (user_id) DO UPDATE SET app_installed_at = COALESCE(user_verification_state.app_installed_at, now()), updated_at = now()`;
+      return send({ progress: await maybeCompleteVerification(me) });
+    }
+    if (a === 'me' && b === 'verification' && !c && method === 'GET') {
+      need();
+      res.setHeader('Cache-Control', 'no-store');
+      return send(await maybeCompleteVerification(me));
+    }
     if (a === 'me' && b === 'verified-offer' && method === 'GET') {
       need();
       res.setHeader('Cache-Control', 'no-store');
-      if (!(await verifiedBannerEnabled())) return send({ show: false });
-      const [row] = await sql`SELECT verified FROM users WHERE id = ${me}`;
-      return send({ show: !!row && !row.verified });
+      const progress = await maybeCompleteVerification(me);
+      return send({ ...progress, show: progress.enabled && !progress.verified });
     }
     if (a === 'me' && b === 'verified' && method === 'POST') {
       need();
-      if (!(await verifiedBannerEnabled())) throw new HttpError(403, 'verified_offer_closed');
-      const [row] = await sql`UPDATE users SET verified = true WHERE id = ${me} RETURNING verified`;
-      if (!row) throw new HttpError(404, 'not_found');
-      return send({ ok: true, verified: true });
+      const progress = await maybeCompleteVerification(me);
+      return send({ ok: progress.verified, verified: progress.verified, progress });
     }
 
     // ---------- PERFIL PRÓPRIO ----------
@@ -2176,6 +2237,8 @@ module.exports = async (req, res) => {
       for (let i = 0; i < rawImages.length; i++) {
         await sql`INSERT INTO post_images (post_id, pos, data) VALUES (${row.id}, ${i}, ${rawImages[i]})`;
       }
+      await recordVerificationDay(me, 'post');
+      if (await verifiedBannerEnabled()) await maybeCompleteVerification(me);
       const [r] = await sql`
         SELECT p.id, p.body, p.created_at, u.id AS uid, u.username, u.name, u.avatar_v, u.verified, u.is_ai, u.pageup,
           0 AS likes, false AS liked
@@ -2214,7 +2277,11 @@ module.exports = async (req, res) => {
       const del = await sql`DELETE FROM likes WHERE user_id = ${me} AND post_id = ${id} RETURNING post_id`;
       if (!del.length) {
         const ins = await sql`INSERT INTO likes (user_id, post_id) VALUES (${me}, ${id}) ON CONFLICT DO NOTHING RETURNING post_id`;
-        if (ins.length) await notify({ to: post.user_id, type: 'like', postId: id });
+        if (ins.length) {
+          await recordVerificationDay(me, 'interaction');
+          if (await verifiedBannerEnabled()) await maybeCompleteVerification(me);
+          await notify({ to: post.user_id, type: 'like', postId: id });
+        }
       } else await unnotify({ to: post.user_id, type: 'like', postId: id });
       const [n] = await sql`SELECT count(*)::int AS n FROM likes WHERE post_id = ${id}`;
       return send({ liked: !del.length, likes: n.n });
@@ -2262,6 +2329,8 @@ module.exports = async (req, res) => {
       const [recent] = await sql`SELECT count(*)::int AS n FROM comments WHERE user_id = ${me} AND created_at > now() - interval '1 minute'`;
       if (recent.n >= 20) throw new HttpError(429, 'rate_limited');
       const [row] = await sql`INSERT INTO comments (post_id, user_id, body, parent_id, reply_to_uid) VALUES (${post.id}, ${me}, ${body}, ${rootId}, ${replyUid}) RETURNING id`;
+      await recordVerificationDay(me, 'interaction');
+      if (await verifiedBannerEnabled()) await maybeCompleteVerification(me);
       const [r] = await loadComments(post, [row.id]);
       const [n] = await sql`SELECT count(*)::int AS n FROM comments WHERE post_id = ${post.id}`;
       // Dono do post é avisado do comentário; quem foi respondido é avisado da resposta (sem avisar duas vezes a mesma pessoa).
@@ -2284,7 +2353,11 @@ module.exports = async (req, res) => {
       const del = await sql`DELETE FROM comment_likes WHERE comment_id = ${cid} AND user_id = ${me} RETURNING comment_id`;
       if (!del.length) {
         const ins = await sql`INSERT INTO comment_likes (comment_id, user_id) VALUES (${cid}, ${me}) ON CONFLICT DO NOTHING RETURNING comment_id`;
-        if (ins.length) await notify({ to: cm.user_id, type: 'comment_like', postId: post.id, commentId: cid });
+        if (ins.length) {
+          await recordVerificationDay(me, 'interaction');
+          if (await verifiedBannerEnabled()) await maybeCompleteVerification(me);
+          await notify({ to: cm.user_id, type: 'comment_like', postId: post.id, commentId: cid });
+        }
       } else await unnotify({ to: cm.user_id, type: 'comment_like', postId: post.id, commentId: cid });
       const [n] = await sql`SELECT count(*)::int AS n FROM comment_likes WHERE comment_id = ${cid}`;
       const [al] = await sql`SELECT 1 AS x FROM comment_likes WHERE comment_id = ${cid} AND user_id = ${post.user_id}`;
@@ -2317,7 +2390,11 @@ module.exports = async (req, res) => {
       const del = await sql`DELETE FROM reposts WHERE user_id = ${me} AND post_id = ${post.id} RETURNING id`;
       if (!del.length) {
         const ins = await sql`INSERT INTO reposts (user_id, post_id) VALUES (${me}, ${post.id}) ON CONFLICT DO NOTHING RETURNING id`;
-        if (ins.length) await notify({ to: post.user_id, type: 'repost', postId: post.id });
+        if (ins.length) {
+          await recordVerificationDay(me, 'interaction');
+          if (await verifiedBannerEnabled()) await maybeCompleteVerification(me);
+          await notify({ to: post.user_id, type: 'repost', postId: post.id });
+        }
       } else await unnotify({ to: post.user_id, type: 'repost', postId: post.id });
       const [n] = await sql`SELECT count(*)::int AS n FROM reposts WHERE post_id = ${post.id}`;
       return send({ reposted: !del.length, reposts: n.n });
@@ -2469,6 +2546,8 @@ module.exports = async (req, res) => {
       if (!del.length) {
         const ins = await sql`INSERT INTO follows (follower_id, followee_id) VALUES (${me}, ${target.id}) ON CONFLICT DO NOTHING RETURNING follower_id`;
         if (ins.length) {
+          await recordVerificationDay(me, 'interaction');
+          if (await verifiedBannerEnabled()) await maybeCompleteVerification(me);
           // Se a pessoa seguiu a partir de um post dela, o aviso mostra "por esta publicação".
           const viaId = parseInt(readBody(req).post_id, 10);
           let via = null;

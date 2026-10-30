@@ -902,6 +902,12 @@
           <a class="btn ghost sm" href="/home" id="admin-enter">Entrar no site como administrador</a></div>
       </div>
       <div class="box" style="margin-bottom:14px">
+        <h2 style="font-size:17px;margin:0 0 4px">Convite Liquid Glass</h2>
+        <p class="sub" style="margin:0 0 12px">Ao entrar no Bloxter, cada pessoa verá as opções “Ativar” e “Agora não”. Ativar também libera o tema em Acessibilidade → Aparência.</p>
+        <label class="chk"><input type="checkbox" id="glass-invite-enabled" disabled /> Mostrar o convite ao entrar no site</label>
+        <p class="count" id="glass-invite-state" style="margin:10px 0 0">Carregando estado...</p>
+      </div>
+      <div class="box" style="margin-bottom:14px">
         <h2 style="font-size:17px;margin:0 0 4px">Introdução de novos usuários</h2>
         <p class="sub" style="margin:0 0 12px">Controla o que aparece para quem acabou de entrar, antes de usar o site.</p>
         <div class="row" style="display:grid;gap:8px">
@@ -910,8 +916,8 @@
         </div>
       </div>
       <div class="box" style="margin-bottom:14px">
-        <h2 style="font-size:17px;margin:0 0 4px">Banner “Seja verificado”</h2>
-        <p class="sub" style="margin:0 0 12px">Aparece na página inicial, como o aviso das eleições, para quem ainda não é verificado. Ao clicar, a pessoa recebe o selo na hora, com confete e animação.</p>
+        <h2 style="font-size:17px;margin:0 0 4px">Sistema “Seja verificado”</h2>
+        <p class="sub" style="margin:0 0 12px">Ativa a trilha de progresso em Notificações: publicar e interagir em dois dias diferentes, instalar o Bloxter como aplicativo e ativar notificações no aparelho. O selo é concedido automaticamente quando todos os requisitos forem concluídos.</p>
         <div class="row" style="display:grid;gap:8px">
           <label class="chk"><input type="checkbox" id="vb-enabled" disabled /> Ativar o banner de verificado</label>
         </div>
@@ -954,15 +960,33 @@
     const q = document.getElementById('q');
     const accessState = document.getElementById('access-state');
     const accessToggle = document.getElementById('access-toggle');
+    const glassInvite = document.getElementById('glass-invite-enabled');
+    const glassInviteState = document.getElementById('glass-invite-state');
     let accessOpen = false;
+    let glassInviteEnabled = false;
     const loadAccess = async () => {
       try {
         const data = await api('admin/site-access');
         accessOpen = data.access_open;
+        glassInviteEnabled = data.liquid_glass_prompt;
+        glassInvite.checked = glassInviteEnabled;
+        glassInvite.disabled = false;
+        glassInviteState.textContent = glassInviteEnabled ? 'Convite ativo. O tema Liquid Glass está liberado para todos.' : 'Convite desativado.';
         accessState.textContent = accessOpen ? 'Site aberto para todos.' : 'Site fechado; visitantes são enviados para /acess.';
         accessToggle.textContent = accessOpen ? 'Fechar o site' : 'Abrir o site para todos';
-      } catch { accessState.textContent = 'Não foi possível carregar o estado do acesso.'; }
+      } catch { accessState.textContent = 'Não foi possível carregar o estado do acesso.'; glassInviteState.textContent = 'Não foi possível carregar o convite.'; }
     };
+    glassInvite.addEventListener('change', async () => {
+      glassInvite.disabled = true;
+      try {
+        const data = await api('admin/site-access', 'PATCH', { liquid_glass_prompt: glassInvite.checked });
+        glassInviteEnabled = data.liquid_glass_prompt;
+        glassInvite.checked = glassInviteEnabled;
+        glassInviteState.textContent = glassInviteEnabled ? 'Convite ativo. O tema Liquid Glass está liberado para todos.' : 'Convite desativado. Quem já escolheu o tema pode continuar usando ou voltar para Normal.';
+        toast(glassInviteEnabled ? 'Convite e tema Liquid Glass ativados.' : 'Convite Liquid Glass desativado.');
+      } catch { glassInvite.checked = glassInviteEnabled; toast('Não foi possível salvar o convite.'); }
+      finally { glassInvite.disabled = false; }
+    });
     accessToggle.addEventListener('click', async () => {
       accessToggle.disabled = true;
       try {
@@ -992,14 +1016,14 @@
     const applyVb = (d) => {
       vbEnabled.checked = !!d.enabled;
       vbEnabled.disabled = false;
-      vbState.textContent = d.enabled ? 'Ligado: quem ainda não é verificado vê o banner ao entrar na página inicial. Quem clicar vira verificado.' : 'Desligado: o banner não aparece e o clique não verifica ninguém.';
+      vbState.textContent = d.enabled ? 'Ligado: o progresso aparece em Notificações. O selo é concedido após dois dias ativos, instalação do app e notificações push.' : 'Desligado: o progresso fica oculto e o selo não é concedido automaticamente.';
     };
     api('admin/verified-banner').then(applyVb).catch(() => { vbState.textContent = 'Não foi possível carregar o estado do banner.'; });
     vbEnabled.addEventListener('change', async () => {
       vbEnabled.disabled = true;
       try {
         applyVb(await api('admin/verified-banner', 'PATCH', { enabled: vbEnabled.checked }));
-        toast(vbEnabled.checked ? 'Banner de verificado ativado.' : 'Banner de verificado desativado.');
+        toast(vbEnabled.checked ? 'Sistema de verificação ativado.' : 'Sistema de verificação desativado.');
       } catch { vbEnabled.checked = !vbEnabled.checked; toast('Não foi possível salvar.'); }
       finally { vbEnabled.disabled = false; }
     });

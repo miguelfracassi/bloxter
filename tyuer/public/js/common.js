@@ -532,6 +532,36 @@
     document.documentElement.setAttribute('data-appearance', state.appearance);
     document.querySelectorAll('[data-act="appearanceset"]').forEach((button) => button.classList.toggle('on', button.dataset.val === state.appearance));
   }
+  function maybeShowLiquidGlassInvite(access, attempt = 0) {
+    if (!access || !access.liquid_glass_prompt || !state.features.liquid_glass) return;
+    const key = `bx_liquid_glass_invite_${state.me ? state.me.id : 'guest'}`;
+    if (store.get(key)) return;
+    if (document.querySelector('.bx-modal, #bx-notif-ask, #bx-onboarding, .bx-install-sheet')) {
+      if (attempt < 10) setTimeout(() => maybeShowLiquidGlassInvite(access, attempt + 1), 1400);
+      return;
+    }
+    const invite = document.createElement('div');
+    invite.className = 'bx-glass-invite';
+    invite.innerHTML = `<section class="bx-glass-invite-card" role="dialog" aria-modal="true" aria-labelledby="bx-glass-title" aria-describedby="bx-glass-copy">
+      <span class="bx-glass-orb" aria-hidden="true">◌</span>
+      <h2 id="bx-glass-title">Que tal deixar mais moderno?</h2>
+      <p id="bx-glass-copy">Ative o modo Liquid Glass e aproveite. Você pode voltar ao modo normal a qualquer momento em Configurações → Acessibilidade → <a href="/settings#accessibility">Aparência</a>.</p>
+      <div class="bx-glass-actions"><button class="btn" type="button" data-glass-choice="activate">Ativar</button><button class="btn ghost" type="button" data-glass-choice="later">Agora não</button></div>
+    </section>`;
+    const close = () => invite.remove();
+    invite.addEventListener('click', (event) => {
+      if (event.target === invite) { store.set(key, 'later'); close(); }
+    });
+    invite.querySelector('[data-glass-choice="activate"]').addEventListener('click', () => {
+      store.set(key, 'activated');
+      applyAppearance('liquid');
+      close();
+      toast('Liquid Glass ativado. Você pode voltar para Normal em Acessibilidade → Aparência.');
+    });
+    invite.querySelector('[data-glass-choice="later"]').addEventListener('click', () => { store.set(key, 'later'); close(); });
+    invite.querySelector('a').addEventListener('click', () => { store.set(key, 'settings'); });
+    document.body.appendChild(invite);
+  }
 
   /* =====================================================
      API
@@ -1327,7 +1357,7 @@
 
   // ---------- Música do post (YouTube) ----------
   // Mudo e volume são globais: mexer em um post vale para todos.
-  const music = { muted: store.get('bx_music_mute') === '1', vol: Math.min(100, Math.max(0, Number(store.get('bx_music_vol') ?? 70) || 0)), player: null, bar: null, api: null, playing: false };
+  const music = { muted: store.get('bx_music_mute') === '1', vol: Math.min(100, Math.max(0, Number(store.get('bx_music_vol') ?? 70) || 0)), player: null, bar: null, api: null, playing: false, autoFollow: store.get('bx_music_auto') === '1' };
   // Valida link do YouTube no navegador (mesma regra do servidor) e devolve o ID de 11 caracteres.
   function ytId(input) {
     const raw = String(input || '').trim();
@@ -1397,6 +1427,47 @@
       bar.classList.toggle('pm-on', bar === music.bar && music.playing);
       const r = bar.querySelector('.pm-vol'); if (r) r.value = String(music.vol);
     });
+    document.querySelectorAll('[data-music-auto]').forEach((button) => {
+      button.textContent = music.autoFollow ? 'Som automático ligado' : 'Som automático';
+      button.setAttribute('aria-pressed', String(music.autoFollow));
+      button.classList.toggle('on', music.autoFollow);
+    });
+  }
+  const visibleMusicBars = new Map();
+  let musicViewObserver = null;
+  let musicAutoTimer = null;
+  function bestVisibleMusicBar() {
+    return [...visibleMusicBars.entries()].filter(([bar, ratio]) => ratio > 0.15 && bar.isConnected && !bar.classList.contains('pm-preview'))
+      .sort((a, b) => b[1] - a[1])[0]?.[0] || null;
+  }
+  function updateAutoMusic() {
+    clearTimeout(musicAutoTimer);
+    musicAutoTimer = setTimeout(() => {
+      if (!music.autoFollow || music.muted) return;
+      const next = bestVisibleMusicBar();
+      if (next && next !== music.bar) musicPlay(next, true);
+      else if (!next && music.player && music.playing) { try { music.player.pauseVideo(); } catch { /* ignore */ } music.playing = false; syncMusicUI(); }
+    }, 180);
+  }
+  function observeMusicBars(scope = document) {
+    if (!('IntersectionObserver' in window)) return;
+    if (!musicViewObserver) musicViewObserver = new IntersectionObserver((entries) => {
+      entries.forEach((entry) => entry.isIntersecting ? visibleMusicBars.set(entry.target, entry.intersectionRatio) : visibleMusicBars.delete(entry.target));
+      updateAutoMusic();
+    }, { threshold: [0, .15, .35, .55, .75], rootMargin: '-14% 0px -22% 0px' });
+    const bars = scope.matches && scope.matches('.post') ? scope.querySelectorAll('.post-music:not(.pm-preview)') : scope.querySelectorAll ? scope.querySelectorAll('.post .post-music:not(.pm-preview)') : [];
+    bars.forEach((bar) => { if (bar.dataset.autoObserved) return; bar.dataset.autoObserved = '1'; musicViewObserver.observe(bar); });
+  }
+  if (document.body && 'MutationObserver' in window) {
+    new MutationObserver((records) => records.forEach((record) => record.addedNodes.forEach((node) => { if (node.nodeType === 1) observeMusicBars(node); })))
+      .observe(document.body, { childList: true, subtree: true });
+    observeMusicBars(document);
+  }
+  function setAutoMusic(enabled) {
+    music.autoFollow = !!enabled;
+    store.set('bx_music_auto', music.autoFollow ? '1' : '0');
+    syncMusicUI();
+    if (music.autoFollow) updateAutoMusic();
   }
   function applyMusicAudio() {
     const p = music.player;
@@ -1413,14 +1484,28 @@
     });
     return music.api;
   }
-  async function musicPlay(bar) {
+  async function musicPlay(bar, automatic = false) {
+    if (!bar || !bar.isConnected) return;
     if (bar === music.bar && music.player) { // mesmo post: pausa / retoma
+      if (automatic && music.playing) return;
       try { if (music.playing) music.player.pauseVideo(); else { pauseAllVideos(); music.player.playVideo(); } } catch { /* ignore */ }
       return;
     }
     pauseAllVideos();
+    const old = music.bar;
+    if (music.player && automatic && music.player.loadVideoById) {
+      const iframe = (() => { try { return music.player.getIframe(); } catch { return null; } })();
+      const host = bar.querySelector('.pm-host');
+      if (iframe && host) {
+        host.replaceChildren(iframe);
+        music.bar = bar; music.playing = false; syncMusicUI();
+        try { music.player.loadVideoById({ videoId: bar.dataset.music, startSeconds: Number(bar.dataset.start) || 0 }); applyMusicAudio(); }
+        catch { /* se o player não aceitar a troca, o próximo evento de rolagem tenta novamente */ }
+        return;
+      }
+    }
     if (music.player) { try { music.player.destroy(); } catch { /* ignore */ } music.player = null; }
-    const old = music.bar; music.bar = bar; music.playing = false; syncMusicUI();
+    music.bar = bar; music.playing = false; syncMusicUI();
     if (old && old !== bar) { const h = old.querySelector('.pm-host'); if (h) h.innerHTML = ''; }
     bar.querySelector('.pm-host').innerHTML = '<div></div>';
     const YT = await loadYT();
@@ -2157,14 +2242,25 @@
     musicplay(el) { musicPlay(el.closest('.post-music')); },
     musicbtn(el) { // 1º toque: toca e liga o som; depois: muta/desmuta (global)
       const bar = el.closest('.post-music');
+      setAutoMusic(true);
       if (bar !== music.bar || !music.playing) { if (music.muted) { music.muted = false; if (!music.vol) music.vol = 70; store.set('bx_music_mute', '0'); store.set('bx_music_vol', String(music.vol)); } musicPlay(bar); return; }
       actions.musicmute();
+    },
+    musicauto() {
+      const enabled = !music.autoFollow;
+      setAutoMusic(enabled);
+      if (!enabled) return;
+      const bar = bestVisibleMusicBar() || document.querySelector('.post .post-music:not(.pm-preview)');
+      if (!bar) { toast('Som automático ativado. Ele começa quando uma publicação com música aparecer.'); return; }
+      if (music.muted) { music.muted = false; if (!music.vol) music.vol = 70; store.set('bx_music_mute', '0'); store.set('bx_music_vol', String(music.vol)); }
+      musicPlay(bar);
     },
     musicmute() {
       music.muted = !music.muted;
       if (!music.muted && music.vol === 0) music.vol = 70;
       store.set('bx_music_mute', music.muted ? '1' : '0'); store.set('bx_music_vol', String(music.vol));
       applyMusicAudio(); syncMusicUI();
+      if (!music.muted) updateAutoMusic();
     },
     musictoggle() {
       const i = $('#composer-music'); if (!i) return;
@@ -2309,6 +2405,9 @@
       subscribePush();
     } catch { /* ignore */ }
   }
+  window.addEventListener('appinstalled', () => {
+    if (state.me) api('me/verification/install', { method: 'POST' }).then(() => window.dispatchEvent(new Event('bx-verification-updated'))).catch(() => {});
+  });
 
   function maybeAskNotifications() {
     try {
@@ -2435,8 +2534,10 @@
     applyTheme(store.get('bx_theme') === 'light' ? 'light' : 'dark');
     const adminPage = /^\/administracao(?:\/|$)/.test(location.pathname) || location.pathname === '/verificacao.html';
     let adminPreview = false;
+    let siteAccess = null;
     try {
       const access = await api('site/status');
+      siteAccess = access;
       Object.assign(state.features, access.features || {});
       applyAppearance(store.get('bx_appearance'));
       adminPreview = !access.access_open && access.admin_bypass;
@@ -2461,6 +2562,8 @@
       state.me = user;
       if (banned) { showBanned(banned.reason); return null; }
     } catch { state.me = null; }
+    const isInstalledApp = (window.BXPWA && window.BXPWA.isStandalone && window.BXPWA.isStandalone()) || !!navigator.standalone;
+    if (state.me && isInstalledApp) api('me/verification/install', { method: 'POST' }).catch(() => {});
     state.ready = true;
     if (adminPreview) {
       const banner = document.createElement('aside');
@@ -2489,6 +2592,7 @@
     if (shell === 'app') {
       appShell();
       setActiveNav(active);
+      if (!adminPage) setTimeout(() => maybeShowLiquidGlassInvite(siteAccess), 1800);
       if (state.me && !state.me.onboarding_done) setTimeout(() => openOnboarding(state.me), 0);
       else if (state.me) {
         loadNewFeatures().then((nf) => {
@@ -2500,6 +2604,7 @@
       return $('#view');
     }
     const view = publicShell();
+    if (!adminPage) setTimeout(() => maybeShowLiquidGlassInvite(siteAccess), 1800);
     if (state.me && !state.me.onboarding_done) setTimeout(() => openOnboarding(state.me), 0);
     return view;
   }
@@ -2509,7 +2614,7 @@
     accountPath, toggles, langToggle, setTitle, go, safeNext, appShell, publicShell, refreshShellText,
     setActiveNav, updateBadge, pollUnread, badges, followLabel, userRow, usernameChecker, postHTML, loadMoreBtn, feed,
     loadPosts, setFeed, forms, actions, openSheet, openReport, openPost, openImageViewer, imagesHTML, subscribePush, applyLang, applyTheme, openProfileDetails, openOnboarding, init,
-    music: { seek: (bar, sec) => { if (bar === music.bar && music.player) { try { music.player.seekTo(sec, true); } catch { /* ignore */ } } }, html: musicHTML, ytId, ytStart, parseTime, fmtTime, stop: stopMusic, sync: syncMusicUI },
+    music: { seek: (bar, sec) => { if (bar === music.bar && music.player) { try { music.player.seekTo(sec, true); } catch { /* ignore */ } } }, html: musicHTML, ytId, ytStart, parseTime, fmtTime, stop: stopMusic, sync: syncMusicUI, autoButton: () => `<button type="button" class="btn ghost sm" data-act="musicauto" aria-pressed="${music.autoFollow}">${music.autoFollow ? 'Som automático ligado' : 'Som automático'}</button>`, setAuto: setAutoMusic },
   };
 
 })();

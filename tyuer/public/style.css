@@ -1046,6 +1046,9 @@ img { display: block; max-width: 100%; }
 :root[data-appearance='liquid'] .right .box,
 :root[data-appearance='liquid'] .bx-modal-card,
 :root[data-appearance='liquid'] .post-pop,
+:root[data-appearance='liquid'] .notif,
+:root[data-appearance='liquid'] .stories-panel,
+:root[data-appearance='liquid'] .profile-head,
 :root[data-appearance='liquid'] .composer .box {
   background-color: var(--card);
   border-color: var(--line);
@@ -1054,6 +1057,11 @@ img { display: block; max-width: 100%; }
   backdrop-filter: blur(20px) saturate(145%);
 }
 :root[data-appearance='liquid'] .post { border-radius: 16px; margin: 8px 0; }
+:root[data-appearance='liquid'] .notif { border: 1px solid var(--line); border-radius: 16px; margin: 8px 0; padding: 12px; }
+:root[data-appearance='liquid'] .tabs button,
+:root[data-appearance='liquid'] .setting-tabs button { transition: transform .18s ease, background .18s ease; }
+:root[data-appearance='liquid'] .tabs button:hover,
+:root[data-appearance='liquid'] .setting-tabs button:hover { transform: translateY(-1px); }
 :root[data-appearance='liquid'] .btn.ghost,
 :root[data-appearance='liquid'] .pill-toggle { background-color: rgba(255, 255, 255, .055); }
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
@@ -1068,3 +1076,28 @@ img { display: block; max-width: 100%; }
   :root[data-appearance='liquid'] .post-pop,
   :root[data-appearance='liquid'] .composer .box { background-color: var(--card); }
 }
+
+.bx-glass-invite { position:fixed; inset:0; z-index:1600; display:grid; place-items:center; padding:18px; background:rgba(2,8,18,.58); -webkit-backdrop-filter:blur(18px); backdrop-filter:blur(18px); }
+.bx-glass-invite-card { position:relative; isolation:isolate; overflow:hidden; width:min(100%,480px); padding:clamp(24px,6vw,36px); border:1px solid rgba(220,240,255,.32); border-radius:30px; color:#fff; background:linear-gradient(140deg,rgba(70,117,171,.78),rgba(23,38,66,.74) 55%,rgba(70,57,111,.75)); box-shadow:0 30px 100px rgba(0,0,0,.45),inset 0 1px 0 rgba(255,255,255,.25); -webkit-backdrop-filter:blur(30px) saturate(160%); backdrop-filter:blur(30px) saturate(160%); }
+.bx-glass-invite-card::before,.bx-glass-invite-card::after { position:absolute; z-index:-1; content:""; width:210px; height:210px; border-radius:50%; filter:blur(4px); opacity:.5; }
+.bx-glass-invite-card::before { background:radial-gradient(circle at 35% 35%,#fff9,#97c6ff55 55%,transparent 72%); top:-98px; right:-55px; }
+.bx-glass-invite-card::after { background:radial-gradient(circle at 45% 45%,#ff9b7166,#9b8eff55 57%,transparent 75%); bottom:-130px; left:-80px; }
+.bx-glass-orb { display:grid; place-items:center; width:52px; height:52px; margin-bottom:22px; border:1px solid #ffffff66; border-radius:18px; color:#fff; font-size:38px; line-height:1; background:linear-gradient(145deg,#ffffff3d,#ffffff08); box-shadow:inset 0 1px #ffffff77,0 12px 30px #0002; }
+.bx-glass-invite-card h2 { margin:0 0 10px; font-size:clamp(23px,5vw,30px); line-height:1.18; letter-spacing:-.035em; }
+.bx-glass-invite-card p { margin:0; color:#f1f6ffdc; font-size:14px; line-height:1.65; }
+.bx-glass-invite-card a { color:#fff; text-decoration:underline; text-underline-offset:3px; }
+.bx-glass-actions { display:flex; gap:10px; margin-top:26px; }
+.bx-glass-actions > * { flex:1; }
+.bx-glass-invite-card .btn { border-color:#fff; box-shadow:0 7px 18px #0002; }
+.bx-glass-invite-card .btn.ghost { border-color:#ffffff77; background:#ffffff12; color:#fff; }
+.verification-progress { display:grid; gap:14px; margin:0 0 14px; padding:18px; border:1px solid var(--line); border-radius:18px; background:var(--card); }
+.verification-progress h2 { font-size:17px; margin:0; }
+.verification-progress p { color:var(--fg2); font-size:13px; line-height:1.5; }
+.verification-steps { display:grid; gap:8px; }
+.verification-step { display:flex; align-items:center; gap:10px; min-height:42px; padding:9px 11px; border:1px solid var(--line); border-radius:12px; }
+.verification-step .step-mark { display:grid; flex:none; place-items:center; width:23px; height:23px; border:1px solid var(--line); border-radius:50%; font-size:12px; }
+.verification-step.done .step-mark { background:var(--fg); color:var(--bg); }
+.verification-step .step-copy { flex:1; font-size:13px; }
+.verification-step .step-action { flex:none; }
+.verification-progress .verification-note { min-height:18px; color:var(--fg2); font-size:12px; }
+@media (max-width:520px) { .bx-glass-actions { flex-direction:column; } .verification-step { align-items:flex-start; flex-wrap:wrap; } .verification-step .step-action { margin-left:32px; } }

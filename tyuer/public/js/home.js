@@ -14,7 +14,7 @@
   async function homeView(view) {
     setTitle(t('nav.home'));
     view.innerHTML = `
-      <div class="page-head"><h1>${t('nav.home')}</h1></div>
+      <div class="page-head"><h1>${t('nav.home')}</h1>${BX.music.autoButton()}</div>
       <section class="stories-panel" aria-label="Stories">
         <div class="stories-heading"><div><h2>Stories</h2><p>Compartilhe um momento; ele desaparece em 24 horas.</p></div><button class="btn ghost sm" type="button" data-story-add>+ Criar story</button></div>
         <div class="story-strip" id="story-strip" aria-live="polite"><div class="story-loading">Carregando stories…</div></div>

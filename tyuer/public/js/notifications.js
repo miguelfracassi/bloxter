@@ -6,6 +6,7 @@
   let kind = 'all';
   let cursor = null;
   let settings = null;
+  let verification = null;
   let asked = true;
 
   // O que cada tipo de aviso diz. O nome da pessoa vem em negrito antes do texto.
@@ -19,6 +20,7 @@
     comment_like: () => 'curtiu seu comentário',
   };
   const TYPE_ICON = { follow: ICON.userplus, follow_post: ICON.userplus, like: ICON.heart, repost: ICON.repost, comment: ICON.comment, reply: ICON.comment, comment_like: ICON.heart };
+  TYPE_ICON.verification = '<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 12 4 4L19 6"/></svg>';
 
   const SETTINGS_ROWS = [
     ['follow', 'Novos seguidores', 'Quando alguém começar a seguir você.'],
@@ -46,6 +48,10 @@
   }
 
   function itemHTML(n) {
+    if (n.type === 'verification') return `<article class="notif ${n.read ? '' : 'unread'}" data-notif="${n.id}">
+      <span class="notif-avatar">${avatar(n.user)}<i class="notif-type" aria-hidden="true">${TYPE_ICON.verification}</i></span>
+      <div class="notif-main"><p><b>Bloxter</b> ${esc(n.body)}</p><small>${ago(n.created_at)}</small></div>
+    </article>`;
     const isFollow = n.type === 'follow' || n.type === 'follow_post';
     const side = n.post
       ? postPreview(n)
@@ -83,6 +89,23 @@
     return `<div class="empty"><b>Nenhuma notificação ainda</b>${msg}</div>`;
   }
 
+  function verificationHTML(p) {
+    if (!p || !p.enabled || p.verified) return '';
+    const step = (done, text, action = '') => `<div class="verification-step ${done ? 'done' : ''}"><span class="step-mark" aria-hidden="true">${done ? '✓' : '•'}</span><span class="step-copy">${text}</span>${action ? `<span class="step-action">${action}</span>` : ''}</div>`;
+    const installAction = p.app_installed ? '' : '<button class="btn ghost sm" type="button" data-verification-install>Instalar</button><button class="btn ghost sm" type="button" data-verification-install-confirm>Já instalei</button>';
+    const pushAction = p.push_enabled ? '' : '<button class="btn ghost sm" type="button" data-verification-push>Ativar</button>';
+    return `<section class="verification-progress" aria-labelledby="verification-title">
+      <h2 id="verification-title">Conquiste o selo de verificado</h2>
+      <p>Complete os requisitos abaixo. Seu selo será adicionado automaticamente, com um aviso em Notificações e no aparelho.</p>
+      <div class="verification-steps">
+        ${step(p.active_days >= 2, `Publique e interaja em dois dias diferentes (${p.active_days}/2)`)}
+        ${step(p.app_installed, 'Instale o Bloxter como aplicativo no navegador', installAction)}
+        ${step(p.push_enabled, 'Ative as notificações no aparelho', pushAction)}
+      </div>
+      <p class="verification-note" id="verification-note" aria-live="polite"></p>
+    </section>`;
+  }
+
   function view() {
     setTitle(t('nav.notifications'));
     v.innerHTML = `
@@ -92,6 +115,7 @@
           <button type="button" class="icon-btn" data-notif-clear aria-label="Limpar notificações" title="Limpar tudo">${ICON.trash}</button>
         </div></div>
       <div id="notif-prompt"></div>
+      <div id="verification-guidance"></div>
       <div class="tabs" role="tablist">
         <button data-kind="all" class="on">Todas</button>
         <button data-kind="follows">Seguidores</button>
@@ -104,6 +128,9 @@
     const list = $('#notif-list'), more = $('#notif-more');
     if (reset) { cursor = null; list.innerHTML = `<div class="loading">${t('loading')}</div>`; more.innerHTML = ''; }
     try {
+      try { verification = await api('me/verification'); } catch { verification = null; }
+      const guidance = $('#verification-guidance');
+      if (guidance) guidance.innerHTML = verificationHTML(verification);
       const qs = `kind=${kind}${cursor ? `&before=${cursor}` : ''}`;
       const data = await api(`notifications?${qs}`);
       settings = data.settings; asked = data.asked;
@@ -159,6 +186,36 @@
   }
 
   v.addEventListener('click', async (e) => {
+    if (e.target.closest('[data-verification-install]')) {
+      const note = $('#verification-note');
+      try {
+        const result = window.BXPWA ? await window.BXPWA.install() : 'unavailable';
+        if (result === 'unavailable') {
+          note.textContent = 'Use o menu do navegador para instalar ou adicionar à tela inicial. Depois volte e toque em “Já instalei”.';
+          if (window.BXPWA) window.BXPWA.openSheet();
+        } else if (result === 'accepted') note.textContent = 'Instalação iniciada. Abra o Bloxter pelo aplicativo para concluir.';
+        else note.textContent = 'A instalação não foi concluída.';
+      } catch { if (note) note.textContent = 'Não foi possível iniciar a instalação neste navegador.'; }
+      return;
+    }
+    if (e.target.closest('[data-verification-install-confirm]')) {
+      const note = $('#verification-note');
+      try { await api('me/verification/install', { method: 'POST' }); await load(true); toast('Instalação confirmada.'); }
+      catch (err) { if (note) note.textContent = errMsg(err); }
+      return;
+    }
+    if (e.target.closest('[data-verification-push]')) {
+      const button = e.target.closest('[data-verification-push]');
+      const note = $('#verification-note'); button.disabled = true;
+      try {
+        if (typeof Notification === 'undefined' || !window.isSecureContext) throw new Error('unsupported');
+        const permission = Notification.permission === 'granted' ? 'granted' : await Notification.requestPermission();
+        if (permission !== 'granted' || !(await BX.subscribePush())) throw new Error('denied');
+        await load(true);
+        toast('Notificações do aparelho ativadas.');
+      } catch { if (note) note.textContent = 'Permita notificações neste navegador e tente novamente.'; button.disabled = false; }
+      return;
+    }
     const tab = e.target.closest('[data-kind]');
     if (tab) {
       kind = tab.dataset.kind;
