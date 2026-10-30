@@ -1077,8 +1077,6 @@ img { display: block; max-width: 100%; }
 :root[data-appearance='liquid'] .setting-tabs button { transition: transform .18s ease, background .18s ease; }
 :root[data-appearance='liquid'] .tabs button:hover,
 :root[data-appearance='liquid'] .setting-tabs button:hover { transform: translateY(-1px); }
-:root[data-appearance='liquid'] .btn.ghost,
-:root[data-appearance='liquid'] .pill-toggle { background-color: rgba(255, 255, 255, .055); }
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
   :root[data-appearance='liquid'] .nav,
   :root[data-appearance='liquid'] .side,
@@ -1112,3 +1110,199 @@ img { display: block; max-width: 100%; }
 .verification-step .step-action { flex:none; }
 .verification-progress .verification-note { min-height:18px; color:var(--fg2); font-size:12px; }
 @media (max-width:520px) { .bx-glass-actions { flex-direction:column; } .verification-step { align-items:flex-start; flex-wrap:wrap; } .verification-step .step-action { margin-left:32px; } }
+
+/* =====================================================================
+   LIQUID GLASS — botões e controles (só vale com data-appearance='liquid')
+   Vidro fosco, borda de luz no topo, brilho suave que passeia no hover.
+   Obs.: elemento com backdrop-filter vira "raiz" do desfoque; por isso
+   .side/.nav/.box ficam sem blur próprio, para os botões de dentro
+   enxergarem o fundo colorido da página.
+   ===================================================================== */
+:root[data-appearance='liquid'] {
+  --lg-hi: rgba(255,255,255,.30);
+  --lg-lo: rgba(255,255,255,.07);
+  --lg-fg: #fff;
+  --lg-rim: rgba(255,255,255,.22);
+  --lg-rim-top: rgba(255,255,255,.62);
+  --lg-glow: rgba(255,255,255,.16);
+  --lg-drop: rgba(0,0,0,.55);
+  --lg-gloss: rgba(255,255,255,.40);
+  --lg-g-hi: rgba(255,255,255,.14);
+  --lg-g-lo: rgba(255,255,255,.035);
+  --lg-g-fg: var(--fg);
+  --lg-on-bg: linear-gradient(180deg, rgba(255,255,255,.94), rgba(255,255,255,.74));
+  --lg-on-fg: #000;
+  --lg-ease: cubic-bezier(.34,1.56,.64,1);
+}
+:root[data-appearance='liquid'][data-theme='light'] {
+  --lg-hi: rgba(40,42,52,.86);
+  --lg-lo: rgba(0,0,0,.70);
+  --lg-fg: #fff;
+  --lg-rim: rgba(255,255,255,.28);
+  --lg-rim-top: rgba(255,255,255,.55);
+  --lg-glow: rgba(255,255,255,.14);
+  --lg-drop: rgba(30,40,80,.38);
+  --lg-gloss: rgba(255,255,255,.34);
+  --lg-g-hi: rgba(255,255,255,.82);
+  --lg-g-lo: rgba(255,255,255,.38);
+  --lg-g-fg: #000;
+  --lg-on-bg: linear-gradient(180deg, rgba(40,42,52,.88), rgba(0,0,0,.72));
+  --lg-on-fg: #fff;
+}
+
+/* fundo com cor suave para o vidro ter o que refratar */
+:root[data-appearance='liquid'] body {
+  background-image:
+    radial-gradient(60vmax 46vmax at 108% -8%, rgba(255,128,64,.15), transparent 62%),
+    radial-gradient(56vmax 50vmax at -12% 108%, rgba(64,132,255,.17), transparent 62%),
+    radial-gradient(ellipse at 50% -18%, rgba(255,255,255,.045), transparent 48%);
+  background-attachment: fixed;
+}
+:root[data-appearance='liquid'][data-theme='light'] body {
+  background-image:
+    radial-gradient(60vmax 46vmax at 108% -8%, rgba(255,160,110,.30), transparent 62%),
+    radial-gradient(56vmax 50vmax at -12% 108%, rgba(110,170,255,.32), transparent 62%);
+}
+
+/* superfícies translúcidas, sem blur próprio */
+@supports (background: color-mix(in srgb, red 50%, transparent)) {
+  :root[data-appearance='liquid'] .side,
+  :root[data-appearance='liquid'] .nav,
+  :root[data-appearance='liquid'] .box,
+  :root[data-appearance='liquid'] .setting-card,
+  :root[data-appearance='liquid'] .profile-head {
+    background-color: color-mix(in srgb, var(--card) 66%, transparent);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+}
+
+/* ---- botão principal, ghost e ícone ---- */
+:root[data-appearance='liquid'] .btn,
+:root[data-appearance='liquid'] .icon-btn {
+  position: relative; isolation: isolate; overflow: hidden;
+  color: var(--lg-fg);
+  background: linear-gradient(180deg, var(--lg-hi), var(--lg-lo));
+  border: 1.5px solid var(--lg-rim);
+  -webkit-backdrop-filter: blur(16px) saturate(170%) brightness(1.08);
+  backdrop-filter: blur(16px) saturate(170%) brightness(1.08);
+  box-shadow:
+    inset 0 1.5px 0 var(--lg-rim-top),
+    inset 0 -1.5px 1px rgba(255,255,255,.10),
+    inset 0 -14px 18px -12px var(--lg-glow),
+    0 12px 26px -12px var(--lg-drop),
+    0 2px 6px -2px var(--lg-drop);
+  text-shadow: 0 1px 1px rgba(0,0,0,.18);
+  opacity: 1;
+  transition: transform .4s var(--lg-ease), box-shadow .3s ease, background .3s ease, border-color .3s ease;
+}
+:root[data-appearance='liquid'] .btn.ghost,
+:root[data-appearance='liquid'] .icon-btn {
+  color: var(--lg-g-fg);
+  background: linear-gradient(180deg, var(--lg-g-hi), var(--lg-g-lo));
+  text-shadow: none;
+}
+:root[data-appearance='liquid'][data-theme='light'] .btn.ghost,
+:root[data-appearance='liquid'][data-theme='light'] .icon-btn {
+  border-color: rgba(0,0,0,.08);
+  --lg-rim-top: #fff;
+  --lg-drop: rgba(30,40,80,.20);
+  --lg-glow: rgba(120,160,255,.18);
+}
+
+/* reflexo: brilho no topo + faixa de luz que passa no hover */
+:root[data-appearance='liquid'] .btn::before,
+:root[data-appearance='liquid'] .icon-btn::before {
+  content: ''; position: absolute; inset: 0; z-index: -1; border-radius: inherit; pointer-events: none;
+  background:
+    radial-gradient(120% 80% at 50% -25%, var(--lg-gloss), transparent 58%),
+    linear-gradient(115deg, transparent 32%, rgba(255,255,255,.22) 49%, transparent 64%);
+  background-size: 100% 100%, 240% 100%;
+  background-position: 0 0, 135% 0;
+  background-repeat: no-repeat;
+  transition: background-position .9s ease;
+}
+:root[data-appearance='liquid'] .btn:hover,
+:root[data-appearance='liquid'] .icon-btn:hover {
+  opacity: 1;
+  transform: translateY(-1px) scale(1.025);
+  border-color: rgba(255,255,255,.4);
+  box-shadow:
+    inset 0 1.5px 0 var(--lg-rim-top),
+    inset 0 -1.5px 1px rgba(255,255,255,.14),
+    inset 0 -16px 22px -12px var(--lg-glow),
+    0 16px 32px -12px var(--lg-drop),
+    0 3px 8px -2px var(--lg-drop);
+}
+:root[data-appearance='liquid'] .btn:hover::before,
+:root[data-appearance='liquid'] .icon-btn:hover::before { background-position: 0 0, -35% 0; }
+:root[data-appearance='liquid'] .btn:active,
+:root[data-appearance='liquid'] .icon-btn:active { transform: scale(.96); transition-duration: .12s; }
+:root[data-appearance='liquid'] .btn[disabled],
+:root[data-appearance='liquid'] .btn[disabled]:hover { opacity: .45; transform: none; }
+:root[data-appearance='liquid'] .btn:focus-visible,
+:root[data-appearance='liquid'] .icon-btn:focus-visible { outline-offset: 3px; }
+
+/* variações de cor continuam em vidro */
+:root[data-appearance='liquid'] .btn.danger {
+  --lg-hi: rgba(255,92,92,.70); --lg-lo: rgba(199,57,57,.52); --lg-drop: rgba(199,57,57,.45); color: #fff;
+}
+:root[data-appearance='liquid'][data-theme='light'] .btn.danger {
+  --lg-hi: rgba(222,70,70,.94); --lg-lo: rgba(176,38,38,.88); --lg-drop: rgba(176,38,38,.4);
+}
+:root[data-appearance='liquid'] .vcel-card .btn {
+  --lg-hi: rgba(70,160,255,.78); --lg-lo: rgba(46,150,255,.52); --lg-drop: rgba(46,150,255,.5); color: #fff;
+}
+
+/* alternador (pill-toggle) e abas */
+:root[data-appearance='liquid'] .pill-toggle {
+  border-color: var(--lg-rim);
+  background: linear-gradient(180deg, var(--lg-g-hi), var(--lg-g-lo));
+  -webkit-backdrop-filter: blur(14px) saturate(160%);
+  backdrop-filter: blur(14px) saturate(160%);
+  box-shadow: inset 0 1.5px 0 var(--lg-rim-top), 0 10px 22px -12px var(--lg-drop);
+}
+:root[data-appearance='liquid'] .pill-toggle button { transition: background .3s ease, color .3s ease, box-shadow .3s ease; }
+:root[data-appearance='liquid'] .pill-toggle button.on {
+  background: var(--lg-on-bg); color: var(--lg-on-fg);
+  box-shadow: inset 0 1.5px 0 rgba(255,255,255,.7), 0 4px 12px -4px var(--lg-drop);
+}
+
+/* menu lateral e barra do celular */
+:root[data-appearance='liquid'] .nav a,
+:root[data-appearance='liquid'] .nav button,
+:root[data-appearance='liquid'] .tabbar a,
+:root[data-appearance='liquid'] .tabbar button { transition: background .3s ease, box-shadow .3s ease, transform .35s var(--lg-ease); }
+:root[data-appearance='liquid'] .nav a:hover,
+:root[data-appearance='liquid'] .nav button:hover {
+  background: linear-gradient(180deg, var(--lg-g-hi), var(--lg-g-lo));
+  box-shadow: inset 0 1px 0 var(--lg-rim-top), 0 8px 18px -10px var(--lg-drop);
+}
+:root[data-appearance='liquid'] .nav a.active,
+:root[data-appearance='liquid'] .tabbar a.active,
+:root[data-appearance='liquid'] .tabbar button.active {
+  background: linear-gradient(180deg, var(--lg-g-hi), var(--lg-g-lo));
+  box-shadow: inset 0 1.5px 0 var(--lg-rim-top), inset 0 -10px 14px -10px var(--lg-glow), 0 8px 18px -10px var(--lg-drop);
+}
+:root[data-appearance='liquid'] .tabbar {
+  background-color: color-mix(in srgb, var(--bg) 55%, transparent);
+  -webkit-backdrop-filter: blur(20px) saturate(170%);
+  backdrop-filter: blur(20px) saturate(170%);
+}
+
+/* sem backdrop-filter: vidro um pouco mais sólido */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  :root[data-appearance='liquid'] { --lg-hi: rgba(90,90,96,.92); --lg-lo: rgba(40,40,44,.92); }
+  :root[data-appearance='liquid'][data-theme='light'] { --lg-g-hi: rgba(255,255,255,.96); --lg-g-lo: rgba(244,244,246,.96); }
+}
+/* quem prefere menos transparência / menos movimento */
+@media (prefers-reduced-transparency: reduce) {
+  :root[data-appearance='liquid'] .btn, :root[data-appearance='liquid'] .icon-btn, :root[data-appearance='liquid'] .pill-toggle {
+    -webkit-backdrop-filter: none; backdrop-filter: none;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  :root[data-appearance='liquid'] .btn, :root[data-appearance='liquid'] .icon-btn,
+  :root[data-appearance='liquid'] .btn::before, :root[data-appearance='liquid'] .icon-btn::before { transition: none; }
+  :root[data-appearance='liquid'] .btn:hover, :root[data-appearance='liquid'] .icon-btn:hover { transform: none; }
+}
