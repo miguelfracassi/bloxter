@@ -851,6 +851,106 @@
     return { open: render };
   }
 
+  function discordComponentsModule() {
+    const box = document.getElementById('discord-components-box');
+    let imageData = '';
+    const statusName = { queued: 'Na fila', sending: 'Enviando', sent: 'Enviado', failed: 'Falhou' };
+    const stamp = (value) => value ? new Date(value).toLocaleString('pt-BR') : '—';
+    const dataUrl = (blob) => new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result || ''));
+      reader.onerror = () => reject(new Error('Não consegui ler essa imagem.'));
+      reader.readAsDataURL(blob);
+    });
+    async function prepararImagem(file) {
+      if (!file || !file.type.startsWith('image/')) throw new Error('Escolha um arquivo de imagem.');
+      if (file.size > 12 * 1024 * 1024) throw new Error('A imagem original precisa ter até 12 MB.');
+      const bitmap = await createImageBitmap(file);
+      const escala = Math.min(1, 1600 / Math.max(bitmap.width, bitmap.height));
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.max(1, Math.round(bitmap.width * escala));
+      canvas.height = Math.max(1, Math.round(bitmap.height * escala));
+      canvas.getContext('2d').drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+      bitmap.close();
+      let blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', .84));
+      if (!blob) throw new Error('Não consegui preparar essa imagem.');
+      if (blob.size > 2700000) blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', .68));
+      if (!blob || blob.size > 2700000) throw new Error('A imagem continua muito grande depois da compressão.');
+      return dataUrl(blob);
+    }
+    function drawQueue(items) {
+      const list = box.querySelector('#discord-components-queue');
+      if (!list) return;
+      list.innerHTML = items.length ? items.map((item) => `<div class="u">
+        <div class="uh"><div class="info"><b>Canal ${esc(item.channel_id)} <span class="aitag">${esc(statusName[item.status] || item.status)}</span></b>
+        <span class="h">${esc(item.body || (item.image_data ? 'Publicação com imagem' : 'Componente'))}</span>
+        ${item.last_error ? `<span class="count" style="display:block;color:#f66">${esc(item.last_error)}</span>` : ''}</div>
+        <span class="count">${esc(stamp(item.sent_at || item.created_at))}</span></div></div>`).join('') : '<div class="empty">Ainda não há componentes enviados.</div>';
+    }
+    async function refreshQueue() {
+      try { drawQueue((await api('admin/discord-components')).items || []); }
+      catch (e) { if (e.status === 401) return loginView(); toast('Não foi possível carregar a fila do bot.'); }
+    }
+    async function render() {
+      box.innerHTML = `<h2 style="font-size:17px;margin:0 0 4px">Criar componente Discord V2</h2>
+        <p class="sub" style="margin:0 0 14px">Monte a mensagem aqui. O bot envia imagem, separador e texto ao canal selecionado.</p>
+        <form id="discord-components-form" style="display:grid;gap:12px">
+          <label>Canal do Discord (ID)<input type="text" id="dc-channel" inputmode="numeric" placeholder="Ex.: 123456789012345678" required maxlength="25" /></label>
+          <label>Imagem (opcional)<input type="file" id="dc-image" accept="image/png,image/jpeg,image/webp,image/gif" /></label>
+          <div id="dc-image-preview-wrap" hidden><img id="dc-image-preview" alt="Prévia da imagem" style="max-width:100%;max-height:260px;object-fit:contain;border-radius:12px;border:1px solid var(--line)" /><button type="button" class="btn ghost sm" id="dc-image-remove" style="margin-top:8px">Remover imagem</button></div>
+          <label>Texto (opcional)<textarea class="ta" id="dc-body" maxlength="4000" rows="4" placeholder="Escreva o texto que vai aparecer junto da imagem"></textarea></label>
+          <label class="chk"><input type="checkbox" id="dc-separator" checked /> Adicionar linha separadora entre a imagem e o texto</label>
+          <label>Espaçamento da linha<select class="ta" id="dc-spacing"><option value="small">Normal</option><option value="large">Amplo</option></select></label>
+          <p class="count" style="margin:-6px 0 0">No Discord, a linha ocupa a largura do contêiner; “Amplo” aumenta o espaço vertical ao redor dela.</p>
+          <div class="row"><button class="btn" type="submit" id="dc-send">Enviar pelo bot</button><span class="live" id="dc-status" role="status"></span></div>
+        </form>
+        <div class="row" style="justify-content:space-between;margin-top:22px"><h3 style="font-size:15px;margin:0">Envios recentes</h3><button class="btn ghost sm" type="button" id="dc-refresh">Atualizar</button></div>
+        <div id="discord-components-queue"><div class="empty">Carregando...</div></div>`;
+      const form = box.querySelector('#discord-components-form');
+      const fileInput = box.querySelector('#dc-image');
+      const previewWrap = box.querySelector('#dc-image-preview-wrap');
+      const preview = box.querySelector('#dc-image-preview');
+      const status = box.querySelector('#dc-status');
+      box.querySelector('#dc-refresh').addEventListener('click', refreshQueue);
+      box.querySelector('#dc-separator').addEventListener('change', (e) => { box.querySelector('#dc-spacing').disabled = !e.target.checked; });
+      box.querySelector('#dc-image-remove').addEventListener('click', () => {
+        imageData = ''; fileInput.value = ''; preview.removeAttribute('src'); previewWrap.hidden = true;
+      });
+      fileInput.addEventListener('change', async () => {
+        const file = fileInput.files && fileInput.files[0];
+        if (!file) return;
+        status.textContent = 'Preparando imagem…';
+        try {
+          imageData = await prepararImagem(file);
+          preview.src = imageData; previewWrap.hidden = false; status.textContent = 'Imagem pronta.';
+        } catch (e) { imageData = ''; fileInput.value = ''; status.textContent = e.message || 'Não consegui preparar a imagem.'; }
+      });
+      form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const send = box.querySelector('#dc-send');
+        const body = box.querySelector('#dc-body').value.trim();
+        if (!imageData && !body) { status.textContent = 'Adicione uma imagem ou escreva um texto.'; return; }
+        send.disabled = true; status.textContent = 'Adicionando à fila…';
+        try {
+          const data = await api('admin/discord-components', 'POST', {
+            channel_id: box.querySelector('#dc-channel').value.trim(), body, image: imageData,
+            separator: box.querySelector('#dc-separator').checked,
+            separator_spacing: box.querySelector('#dc-spacing').value,
+          });
+          status.textContent = `Componente #${data.item.id} adicionado à fila do bot.`;
+          form.reset(); imageData = ''; preview.removeAttribute('src'); previewWrap.hidden = true;
+          box.querySelector('#dc-separator').checked = true; box.querySelector('#dc-spacing').disabled = false;
+          await refreshQueue();
+        } catch (e) {
+          if (e.status === 401) return loginView();
+          status.textContent = e.message || 'Não consegui colocar o componente na fila.';
+        } finally { send.disabled = false; }
+      });
+      await refreshQueue();
+    }
+    return { open: render };
+  }
+
   function panelView() {
     app.innerHTML = `
       <div class="top"><div><h1>Administração</h1><div class="sub" style="margin:0">Contas, verificação e abertura do site.</div></div>
@@ -864,6 +964,7 @@
         <button class="btn ghost sm" type="button" role="tab" aria-selected="false" data-panel-tab="popup">Popup</button>
         <button class="btn ghost sm" type="button" role="tab" aria-selected="false" data-panel-tab="global">Chave Global</button>
         <button class="btn ghost sm" type="button" role="tab" aria-selected="false" data-panel-tab="features">Recursos</button>
+        <button class="btn ghost sm" type="button" role="tab" aria-selected="false" data-panel-tab="discord-components">Componentes V2</button>
         <button class="btn ghost sm" type="button" role="tab" aria-selected="false" data-panel-tab="access">Acesso ao site</button>
       </div>
       <section id="panel-registrations" role="tabpanel">
@@ -893,6 +994,9 @@
       </section>
       <section id="panel-features" role="tabpanel" hidden>
         <div class="box" id="features-box"></div>
+      </section>
+      <section id="panel-discord-components" role="tabpanel" hidden>
+        <div class="box" id="discord-components-box"></div>
       </section>
       <section id="panel-access" role="tabpanel" hidden>
       <div class="box" style="margin-bottom:14px">
@@ -948,6 +1052,7 @@
       if (selected === 'popup') popup.open();
       if (selected === 'global') globalKey.open();
       if (selected === 'features') featuresMod.open();
+      if (selected === 'discord-components') discordComponents.open();
     }));
     const chats = chatsModule();
     const pins = pinsModule();
@@ -956,6 +1061,7 @@
     const popup = popupModule();
     const globalKey = globalModule();
     const featuresMod = featuresModule();
+    const discordComponents = discordComponentsModule();
     const list = document.getElementById('list');
     const q = document.getElementById('q');
     const accessState = document.getElementById('access-state');

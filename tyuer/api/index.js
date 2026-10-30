@@ -1416,6 +1416,56 @@ module.exports = async (req, res) => {
         return send({ access_open: settings.access_open === 'true', liquid_glass_prompt: settings.liquid_glass_prompt_enabled === 'true' });
       }
 
+      // Componentes V2 criados no painel: a sessão admin cria, o bot reivindica e confirma a entrega.
+      if (b === 'discord-components' && !c && method === 'POST') {
+        const d0 = readBody(req);
+        const channelId = str(d0.channel_id, 25);
+        const body = str(d0.body, 4000);
+        const image = typeof d0.image === 'string' ? d0.image : '';
+        const spacing = d0.separator_spacing === 'large' ? 'large' : 'small';
+        const separator = d0.separator !== false;
+        if (!/^\d{17,20}$/.test(channelId)) throw new HttpError(400, 'invalid_discord_channel');
+        if (image && (image.length > 3800000 || !/^data:image\/(png|jpeg|webp|gif);base64,[A-Za-z0-9+/]+={0,2}$/.test(image))) {
+          throw new HttpError(400, 'invalid_discord_image');
+        }
+        if (!body && !image) throw new HttpError(400, 'component_empty');
+        const [item] = await sql`
+          INSERT INTO discord_component_queue (channel_id, body, image_data, separator, separator_spacing)
+          VALUES (${channelId}, ${body}, ${image}, ${separator}, ${spacing})
+          RETURNING id, channel_id, body, separator, separator_spacing, status, created_at`;
+        return send({ item }, 201);
+      }
+      if (b === 'discord-components' && !c && method === 'GET') {
+        const items = await sql`
+          SELECT id, channel_id, body, separator, separator_spacing, status, last_error, created_at, sent_at
+          FROM discord_component_queue ORDER BY id DESC LIMIT 30`;
+        return send({ items });
+      }
+      if (b === 'discord-components' && c === 'claim' && method === 'POST') {
+        const limit = Math.min(5, Math.max(1, Number.parseInt(readBody(req).limit, 10) || 3));
+        const items = await sql`
+          UPDATE discord_component_queue SET status = 'sending', last_error = '', updated_at = now()
+          WHERE id IN (
+            SELECT id FROM discord_component_queue
+            WHERE status = 'queued' OR (status = 'sending' AND updated_at < now() - interval '3 minutes')
+            ORDER BY id LIMIT ${limit} FOR UPDATE SKIP LOCKED
+          )
+          RETURNING id, channel_id, body, image_data, separator, separator_spacing`;
+        return send({ items });
+      }
+      if (b === 'discord-components' && c && d === 'complete' && method === 'POST') {
+        const id = Number.parseInt(c, 10);
+        const d0 = readBody(req);
+        const status = d0.status === 'sent' ? 'sent' : d0.status === 'failed' ? 'failed' : '';
+        if (!Number.isInteger(id) || id < 1 || !status) throw new HttpError(400, 'invalid_component_status');
+        const [item] = await sql`
+          UPDATE discord_component_queue SET status = ${status}, last_error = ${status === 'failed' ? str(d0.error, 500) : ''},
+            sent_at = ${status === 'sent' ? new Date().toISOString() : null}, updated_at = now()
+          WHERE id = ${id} RETURNING id, status, last_error, sent_at`;
+        if (!item) throw new HttpError(404, 'not_found');
+        return send({ item });
+      }
+
       // ---------- Posts fixados ----------
       if (b === 'posts' && !c && method === 'GET') {
         const term = str(q.get('q'), 50).replace(/^@/, '');

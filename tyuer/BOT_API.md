@@ -58,3 +58,6 @@ Gerar chave: em /developers (card "API de administração") com a senha do paine
 - `GET /api/admin/posts?username=&limit=&before=` · `DELETE /api/admin/posts/:id` · `DELETE /api/admin/comments/:id`
 - `GET /api/admin/users?q=` · `PATCH /api/admin/users/:username`
 - Listar/revogar chaves (`GET /api/admin/api-keys`, `DELETE /api/admin/api-keys/:prefixo`) só com a sessão admin.
+
+## 7. Componentes V2 no Discord
+Em `/administracao` > **Componentes V2**, a equipe pode montar uma publicação com imagem, linha separadora e texto, informar o ID do canal e colocar o envio na fila. O bot usa a sessão admin já autenticada para buscar os itens pendentes e registrar sucesso ou falha. A linha do Discord sempre ocupa a largura do contêiner; o seletor Normal/Amplo controla o espaçamento vertical do separador.
