@@ -1096,11 +1096,36 @@ module.exports = async (req, res) => {
         const uname = cleanUsername(q.get('username'));
         const before = Number(q.get('before')) || 2147483647;
         const rows = await sql`
-          SELECT p.id, p.body, p.created_at, u.id AS user_id, u.username
+          SELECT p.id, p.body, p.created_at, u.id AS uid, u.username, u.name, u.avatar_v,
+            u.verified, u.is_ai, u.pageup
           FROM posts p JOIN users u ON u.id = p.user_id
           WHERE p.id < ${before} AND (${uname} = '' OR u.username = ${uname})
           ORDER BY p.id DESC LIMIT ${lim()}`;
-        return send({ posts: rows, next_before: rows.length ? rows[rows.length - 1].id : null });
+        const posts = await decorate(rows);
+        return send({
+          posts: posts.map((p) => ({
+            id: p.id, body: p.body, created_at: p.created_at,
+            images: p.images || [], videos: p.videos || [],
+            comments: p.comments, reposts: p.reposts, music: p.music,
+            user: { id: p.uid, username: p.username, name: p.name, avatar: avatarUrl(p.uid, p.avatar_v), ...flags(p) },
+          })),
+          next_before: rows.length ? rows[rows.length - 1].id : null,
+        });
+      }
+      if (b === 'posts' && c && method === 'GET') {
+        const id = intId(c);
+        const [row] = await sql`
+          SELECT p.id, p.body, p.created_at, u.id AS uid, u.username, u.name, u.avatar_v,
+            u.verified, u.is_ai, u.pageup
+          FROM posts p JOIN users u ON u.id = p.user_id WHERE p.id = ${id}`;
+        if (!row) throw new HttpError(404, 'not_found');
+        const [p] = await decorate([row]);
+        return send({ post: {
+          id: p.id, body: p.body, created_at: p.created_at,
+          images: p.images || [], videos: p.videos || [],
+          comments: p.comments, reposts: p.reposts, music: p.music,
+          user: { id: p.uid, username: p.username, name: p.name, avatar: avatarUrl(p.uid, p.avatar_v), ...flags(p) },
+        } });
       }
       if (b === 'posts' && c && method === 'DELETE') {
         const del = await sql`DELETE FROM posts WHERE id = ${intId(c)} RETURNING id`;
@@ -1612,13 +1637,16 @@ module.exports = async (req, res) => {
         FROM posts p JOIN users u ON u.id = p.user_id
         ORDER BY p.id DESC LIMIT ${limit}`;
       const origin = siteOrigin();
+      const detailed = await decorate(rows);
       res.setHeader('Cache-Control', 'public, s-maxage=10, stale-while-revalidate=20');
       return send({
-        posts: rows.map((r) => ({
+        posts: detailed.map((r) => ({
           id: r.id,
           content: r.body,
           comments: r.comments,
           reposts: r.reposts,
+          images: (r.images || []).map((u) => u.startsWith('/') ? origin + u : u),
+          videos: (r.videos || []).map((u) => u.startsWith('/') ? origin + u : u),
           created_at: new Date(r.created_at).toISOString(),
           // O Bloxter ainda não tem página pública para um post (ver explicação na entrega),
           // então devolvemos null em vez de inventar um link que não abre.
