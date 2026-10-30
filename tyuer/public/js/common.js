@@ -2578,6 +2578,9 @@
     const adminPage = /^\/administracao(?:\/|$)/.test(location.pathname) || location.pathname === '/verificacao.html';
     let adminPreview = false;
     let siteAccess = null;
+    // Pede /me ao mesmo tempo que /site/status (antes era um depois do outro).
+    const mePromise = api('me');
+    mePromise.catch(() => {});
     try {
       const access = await api('site/status');
       siteAccess = access;
@@ -2601,7 +2604,7 @@
       if (i > -1) PAGEUP_PAGES.splice(i, 1);
     }
     try {
-      const { user, banned } = await api('me');
+      const { user, banned } = await mePromise;
       state.me = user;
       if (banned) { showBanned(banned.reason); return null; }
     } catch { state.me = null; }

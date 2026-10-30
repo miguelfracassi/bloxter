@@ -434,12 +434,41 @@ async function createAll() {
 // Cria as tabelas (idempotente). Várias requisições podem chegar ao mesmo tempo
 // na primeira vez, e o Postgres falha se duas rodarem CREATE TABLE juntas;
 // por isso usamos uma promessa única por instância e tentamos de novo se der conflito.
+// Versão do esquema = hash deste arquivo. Quando nada mudou desde o último deploy, o banco já está pronto
+// e basta UMA consulta (em vez de ~110 comandos, cada um uma viagem HTTP ao Neon, a cada início de função).
+const SCHEMA_VERSION = require('node:crypto').createHash('sha1').update(require('node:fs').readFileSync(__filename)).digest('hex').slice(0, 16);
+
+async function schemaIsCurrent() {
+  try {
+    const s = getSql();
+    const rows = await s`SELECT value FROM schema_meta WHERE key = 'version'`;
+    return rows.length > 0 && rows[0].value === SCHEMA_VERSION;
+  } catch {
+    return false; // tabela ainda não existe
+  }
+}
+
+async function markSchemaCurrent() {
+  const s = getSql();
+  await s`CREATE TABLE IF NOT EXISTS schema_meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)`;
+  await s`INSERT INTO schema_meta (key, value) VALUES ('version', ${SCHEMA_VERSION}) ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value`;
+}
+
+// Cria as tabelas (idempotente). Várias requisições podem chegar ao mesmo tempo
+// na primeira vez, e o Postgres falha se duas rodarem CREATE TABLE juntas;
+// por isso usamos uma promessa única por instância e tentamos de novo se der conflito.
 function ensureSchema() {
   if (!schemaPromise) {
     schemaPromise = (async () => {
+      if (await schemaIsCurrent()) return;
       let last;
       for (let i = 0; i < 4; i++) {
-        try { await createAll(); return; } catch (e) {
+        try {
+          if (i > 0 && await schemaIsCurrent()) return; // outra instância terminou enquanto esperávamos
+          await createAll();
+          await markSchemaCurrent().catch(() => {});
+          return;
+        } catch (e) {
           last = e;
           if (/DATABASE_URL/.test(String(e && e.message))) throw e;
           await new Promise((r) => setTimeout(r, 200 * (i + 1)));

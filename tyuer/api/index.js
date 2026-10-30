@@ -42,6 +42,7 @@ class HttpError extends Error {
 const USERNAME_RE = /^[a-z0-9_]{3,20}$/;
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 const PAGE = 30;
+let accessCache = null;
 const liaRateBuckets = new Map();
 const teamContractBuckets = new Map();
 
@@ -1411,6 +1412,7 @@ module.exports = async (req, res) => {
       if (b === 'site-access' && method === 'PATCH') {
         const d = readBody(req);
         if (typeof d.access_open === 'boolean') await sql`INSERT INTO site_settings (setting_key, setting_value) VALUES ('access_open', ${String(d.access_open)}) ON CONFLICT (setting_key) DO UPDATE SET setting_value = EXCLUDED.setting_value`;
+        accessCache = null;
         if (typeof d.liquid_glass_prompt === 'boolean') {
           await sql`INSERT INTO site_settings (setting_key, setting_value) VALUES ('liquid_glass_prompt_enabled', ${String(d.liquid_glass_prompt)}) ON CONFLICT (setting_key) DO UPDATE SET setting_value = EXCLUDED.setting_value`;
           if (d.liquid_glass_prompt) {
@@ -1824,8 +1826,12 @@ module.exports = async (req, res) => {
       });
     }
 
-    const [accessSetting] = await sql`SELECT setting_value FROM site_settings WHERE setting_key = 'access_open'`;
-    const accessOpen = accessSetting ? accessSetting.setting_value === 'true' : false;
+    // "Site aberto" quase nunca muda: guarda por 10 s em memória em vez de consultar o banco em toda requisição.
+    if (!accessCache || Date.now() > accessCache.until) {
+      const [accessSetting] = await sql`SELECT setting_value FROM site_settings WHERE setting_key = 'access_open'`;
+      accessCache = { open: accessSetting ? accessSetting.setting_value === 'true' : false, until: Date.now() + 10000 };
+    }
+    const accessOpen = accessCache.open;
     const reserveAllowed = (a === 'auth' && ['register', 'login', 'logout'].includes(b)) || a === 'username-available' || ((a === 'avatar' || a === 'banner') && b && method === 'GET') || (a === 'me' && !b && method === 'GET');
     if (!accessOpen && !isAdminPreview(req) && !reserveAllowed) throw new HttpError(423, 'site_closed');
 
