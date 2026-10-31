@@ -36,7 +36,7 @@
       if (!r.valid) { try { localStorage.removeItem('bx_ref'); } catch { /* ignore */ } return; }
       const box = $('#invite-banner');
       box.hidden = false;
-      box.innerHTML = `🎁 ${esc(t('invite.signupBanner', { name: r.inviter.name, n: r.reward }))}`;
+      box.innerHTML = `${ICON.gift}<span>${esc(t('invite.signupBanner', { name: r.inviter.name, n: r.reward }))}</span>`;
     }).catch(() => {});
   }
   forms.signup = async (f) => {
