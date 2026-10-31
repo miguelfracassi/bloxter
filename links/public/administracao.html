@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="pt-BR" data-theme="dark">
+<head>
+  <meta charset="utf-8" />
+  <meta name="robots" content="noindex, nofollow" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Administração · Bloxter</title>
+  <link rel="icon" href="/favicon.ico?v=20261029b" sizes="48x48" /><link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png?v=20261029b" /><link rel="icon" type="image/svg+xml" href="/favicon.svg?v=20261029b" />
+  <meta name="theme-color" content="#000000" />
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/style.css" />
+  <script>
+    (function () {
+      try {
+        var th = localStorage.getItem('bx_theme');
+        if (th !== 'light' && th !== 'dark') th = 'dark';
+        document.documentElement.setAttribute('data-theme', th);
+      } catch (e) {}
+    })();
+  </script>
+  <style>
+    .vr { max-width: 720px; margin: 0 auto; padding: 24px 16px 60px; }
+    .vr h1 { font-size: 24px; margin-bottom: 4px; }
+    .vr .sub { color: var(--fg2); margin-bottom: 20px; font-size: 14px; }
+    .vr .box { border: 1px solid var(--line); background: var(--card); border-radius: 16px; padding: 18px; }
+    .vr input[type=text], .vr input[type=password], .vr input[type=number], .vr input[type=search] {
+      width: 100%; background: transparent; color: var(--fg); border: 1px solid var(--line); border-radius: 10px;
+      padding: 11px 12px; font: inherit; outline: none;
+    }
+    .vr input:focus { border-color: var(--fg2); }
+    .vr .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+    .vr .login { max-width: 360px; margin: 14vh auto 0; display: grid; gap: 12px; }
+    .vr .err { color: #f4212e; font-size: 14px; min-height: 18px; }
+    .vr .top { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-bottom: 14px; }
+    .vr .u { display: grid; gap: 12px; padding: 14px 0; border-bottom: 1px solid var(--line); }
+    .vr .u:last-child { border-bottom: 0; }
+    .vr .uh { display: flex; align-items: center; gap: 12px; }
+    .vr .uh .info { min-width: 0; flex: 1; }
+    .vr .uh b { display: block; overflow-wrap: anywhere; }
+    .vr .uh span.h { color: var(--fg2); font-size: 14px; }
+    .vr .chk { display: inline-flex; align-items: center; gap: 8px; cursor: pointer; user-select: none; padding: 8px 12px; border: 1px solid var(--line); border-radius: 10px; }
+    .vr .chk input { width: 18px; height: 18px; accent-color: #1d9bf0; }
+    .vr .num { width: 150px; }
+    .vr .count { color: var(--fg2); font-size: 13px; }
+    .vr .empty { text-align: center; color: var(--fg2); padding: 30px 0; }
+    .vr .cl { display: grid; gap: 0; margin-top: 12px; }
+    .vr .ci { display: flex; align-items: center; gap: 12px; padding: 12px 4px; border-bottom: 1px solid var(--line); cursor: pointer; background: none; border-left: 0; border-right: 0; border-top: 0; color: inherit; font: inherit; text-align: left; width: 100%; }
+    .vr .ci:last-child { border-bottom: 0; }
+    .vr .ci:hover { background: color-mix(in srgb, var(--fg) 5%, transparent); }
+    .vr .ci .info { min-width: 0; flex: 1; }
+    .vr .ci b { display: block; overflow-wrap: anywhere; }
+    .vr .ci .pv { display: block; color: var(--fg2); font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .vr .ci .when { color: var(--fg2); font-size: 12px; white-space: nowrap; }
+    .vr .pair { display: inline-flex; }
+    .vr .pair .av:last-child { margin-left: -10px; box-shadow: 0 0 0 2px var(--card); }
+    .vr .mt { display: grid; gap: 10px; margin: 14px 0; padding: 12px; border: 1px solid var(--line); border-radius: 12px; max-height: 62vh; overflow-y: auto; }
+    .vr .mg { display: grid; gap: 2px; max-width: 85%; }
+    .vr .mg .who { font-size: 12px; color: var(--fg2); }
+    .vr .mg .who a { color: inherit; font-weight: 600; }
+    .vr .mg .bb { padding: 9px 12px; border-radius: 14px; border: 1px solid var(--line); overflow-wrap: anywhere; white-space: pre-wrap; }
+    .vr .mg .tm { font-size: 11px; color: var(--fg2); }
+    .vr .mg.s1 { justify-self: end; text-align: right; }
+    .vr .mg.s1 .bb { background: color-mix(in srgb, var(--fg) 10%, transparent); }
+    .vr .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+    .vr .seg button { border: 0; background: transparent; color: var(--fg2); padding: 8px 14px; font: inherit; cursor: pointer; }
+    .vr .seg button[aria-pressed=true] { background: var(--fg); color: var(--bg); }
+    .vr .live { color: var(--fg2); font-size: 12px; }
+    .vr .ov { position: fixed; inset: 0; z-index: 50; display: grid; place-items: center; padding: 18px; background: #000b; }
+    .vr .ov .card { width: min(100%, 380px); display: grid; gap: 12px; background: var(--bg); color: var(--fg); border: 1px solid var(--line); border-radius: 16px; padding: 22px; }
+    .vr .ov h3 { margin: 0; font-size: 18px; }
+    .vr .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin: 12px 0; }
+    .vr .stat { border: 1px solid var(--line); border-radius: 12px; padding: 12px; }
+    .vr .stat b { display: block; font-size: 24px; }
+    .vr .stat span { color: var(--fg2); font-size: 13px; }
+    .vr textarea.ta { width: 100%; background: transparent; color: var(--fg); border: 1px solid var(--line); border-radius: 10px; padding: 11px 12px; font: inherit; outline: none; resize: vertical; }
+  </style>
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png?v=202610287732" />
+  <link rel="manifest" href="/manifest.webmanifest" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-title" content="Bloxter" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black" />
+  <script src="/js/pwa.js"></script>
+</head>
+<body>
+  <div class="vr" id="app"></div>
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  <script src="/js/verificacao.js"></script>
+</body>
+</html>
