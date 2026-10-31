@@ -1,10 +1,10 @@
 const crypto = require('node:crypto');
 
 // Se algum módulo falhar ao carregar, devolvemos o erro em JSON (em vez da página de erro da Vercel).
-let bcrypt, getSql, ensureSchema, getUserId, setSession, clearSession, adminPassword, isAdmin, setAdmin, clearAdmin, setAdminPreview, clearAdminPreview, isAdminPreview, loadError;
+let bcrypt, getSql, ensureSchema, dbEpoch, getUserId, setSession, clearSession, adminPassword, isAdmin, setAdmin, clearAdmin, setAdminPreview, clearAdminPreview, isAdminPreview, loadError;
 try {
   bcrypt = require('bcryptjs');
-  ({ getSql, ensureSchema } = require('../lib/db'));
+  ({ getSql, ensureSchema, dbEpoch } = require('../lib/db'));
   ({ getUserId, getLinked, setLinked, setSession, clearSession, adminPassword, isAdmin, setAdmin, clearAdmin, setAdminPreview, clearAdminPreview, isAdminPreview } = require('../lib/auth'));
 } catch (e) {
   loadError = e;
@@ -57,6 +57,11 @@ function readBody(req) {
 
 function str(v, max) {
   return typeof v === 'string' ? v.trim().slice(0, max) : '';
+}
+
+// Foto/vídeo de post. O "?e=" muda quando o banco muda (ver lib/db.js) e evita cache de imagens de um banco antigo.
+function postMediaPath(id) {
+  return `/api/post-image/${id}?e=${dbEpoch()}`;
 }
 
 function avatarUrl(id, v) {
@@ -512,7 +517,7 @@ module.exports = async (req, res) => {
         const origin = siteOrigin();
         for (const item of mediaRows) {
           if (!mediaByPost.has(item.post_id)) mediaByPost.set(item.post_id, { images: [], videos: [] });
-          mediaByPost.get(item.post_id)[item.is_video ? 'videos' : 'images'].push(`${origin}/api/post-image/${item.id}`);
+          mediaByPost.get(item.post_id)[item.is_video ? 'videos' : 'images'].push(`${origin}${postMediaPath(item.id)}`);
         }
         const [acc] = await sql`SELECT setting_value FROM site_settings WHERE setting_key = 'access_open'`;
         return send({
@@ -590,7 +595,7 @@ module.exports = async (req, res) => {
         const origin = siteOrigin();
         for (const item of mediaRows) {
           if (!mediaByPost.has(item.post_id)) mediaByPost.set(item.post_id, { images: [], videos: [] });
-          mediaByPost.get(item.post_id)[item.is_video ? 'videos' : 'images'].push(`${origin}/api/post-image/${item.id}`);
+          mediaByPost.get(item.post_id)[item.is_video ? 'videos' : 'images'].push(`${origin}${postMediaPath(item.id)}`);
         }
         return send({
           reposts: rows.map((r) => ({
@@ -623,7 +628,7 @@ module.exports = async (req, res) => {
         const origin = siteOrigin();
         for (const item of mediaRows) {
           if (!mediaByPost.has(item.post_id)) mediaByPost.set(item.post_id, { images: [], videos: [] });
-          mediaByPost.get(item.post_id)[item.is_video ? 'videos' : 'images'].push(`${origin}/api/post-image/${item.id}`);
+          mediaByPost.get(item.post_id)[item.is_video ? 'videos' : 'images'].push(`${origin}${postMediaPath(item.id)}`);
         }
         return send({
           comments: rows.map((r) => ({
@@ -776,7 +781,7 @@ module.exports = async (req, res) => {
       for (const im of imgs) {
         const target = im.is_video ? vmap : imap;
         if (!target.has(im.post_id)) target.set(im.post_id, []);
-        target.get(im.post_id).push(`/api/post-image/${im.id}`);
+        target.get(im.post_id).push(postMediaPath(im.id));
       }
       const musmap = new Map(mus.map((x) => [x.id, { id: x.music, title: x.music_title, start: x.music_start || 0 }]));
       const fset = new Set(fol.map((x) => x.followee_id));
@@ -3082,7 +3087,7 @@ module.exports = async (req, res) => {
           read: !!r.read_at,
           following: !!r.i_follow,
           user: { id: r.uid, username: r.username, name: r.name, avatar: avatarUrl(r.uid, r.avatar_v), ...flags(r) },
-          post: r.post_id && r.post_body != null ? { id: r.post_id, body: r.post_body, image: r.post_image ? `/api/post-image/${r.post_image}` : null } : null,
+          post: r.post_id && r.post_body != null ? { id: r.post_id, body: r.post_body, image: r.post_image ? postMediaPath(r.post_image) : null } : null,
         })),
         more: rows.length === PAGE,
         unread: nn.n,
@@ -3145,7 +3150,7 @@ module.exports = async (req, res) => {
           id: r.id, mine: r.sender_id === me, body: r.body, created_at: r.created_at,
           collab: r.collab_id ? {
             id: r.collab_id, status: r.collab_status || 'pending', post_id: r.collab_post, post_body: r.collab_post_body || '',
-            post_image: r.collab_post_image ? `/api/post-image/${r.collab_post_image}` : null,
+            post_image: r.collab_post_image ? postMediaPath(r.collab_post_image) : null,
             invited_me: r.collab_user === me,
           } : null,
         })),

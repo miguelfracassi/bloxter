@@ -485,11 +485,20 @@ async function createAll() {
 // e basta UMA consulta (em vez de ~110 comandos, cada um uma viagem HTTP ao Neon, a cada início de função).
 const SCHEMA_VERSION = require('node:crypto').createHash('sha1').update(require('node:fs').readFileSync(__filename)).digest('hex').slice(0, 16);
 
+// "Época" do banco: um código aleatório que nasce junto com o banco e nunca muda nele.
+// Vai na URL das imagens dos posts (ex.: /api/post-image/12?e=abc). Sem isso, ao trocar de banco os ids
+// recomeçam do 1 e navegadores/CDN mostrariam fotos antigas (cache de 1 ano) em posts novos.
+let epoch = '0';
+function dbEpoch() { return epoch; }
+
 async function schemaIsCurrent() {
   try {
     const s = getSql();
-    const rows = await s`SELECT value FROM schema_meta WHERE key = 'version'`;
-    return rows.length > 0 && rows[0].value === SCHEMA_VERSION;
+    const rows = await s`SELECT key, value FROM schema_meta WHERE key IN ('version', 'epoch')`;
+    const v = Object.fromEntries(rows.map((r) => [r.key, r.value]));
+    if (v.version !== SCHEMA_VERSION || !v.epoch) return false;
+    epoch = v.epoch;
+    return true;
   } catch {
     return false; // tabela ainda não existe
   }
@@ -498,7 +507,10 @@ async function schemaIsCurrent() {
 async function markSchemaCurrent() {
   const s = getSql();
   await s`CREATE TABLE IF NOT EXISTS schema_meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)`;
+  await s`INSERT INTO schema_meta (key, value) VALUES ('epoch', ${require('node:crypto').randomBytes(5).toString('hex')}) ON CONFLICT (key) DO NOTHING`;
   await s`INSERT INTO schema_meta (key, value) VALUES ('version', ${SCHEMA_VERSION}) ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value`;
+  const rows = await s`SELECT value FROM schema_meta WHERE key = 'epoch'`;
+  if (rows[0]) epoch = rows[0].value;
 }
 
 // Cria as tabelas (idempotente). Várias requisições podem chegar ao mesmo tempo
@@ -527,4 +539,4 @@ function ensureSchema() {
   return schemaPromise;
 }
 
-module.exports = { getSql, ensureSchema };
+module.exports = { getSql, ensureSchema, dbEpoch };
