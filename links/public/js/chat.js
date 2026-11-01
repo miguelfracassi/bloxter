@@ -1,5 +1,8 @@
 (async () => {
   const { $, esc, state, t, errMsg, api, toast, ICON, avatar, hhmm, accountPath, setTitle, go, pollUnread, forms } = window.BX;
+  // Editar / apagar as próprias mensagens.
+  const msgInner = (m) => (m.deleted ? '<span class="msg-deleted">Mensagem apagada</span>' : `${esc(m.body)}${m.edited ? '<span class="msg-edited">(editada)</span>' : ''}`);
+  const msgTools = (m) => (m.mine && !m.deleted ? '<div class="msg-tools"><button type="button" data-msg-edit>Editar</button><button type="button" data-msg-del>Apagar</button></div>' : '');
   const view = await BX.init({ auth: 'required', shell: 'app', active: 'messages' });
   if (!view) return;
 
@@ -18,7 +21,7 @@
       <div class="thread group-thread"><div class="thread-body" id="group-thread-body"></div><form class="thread-form" data-form="message" data-group="${group.id}"><input name="body" maxlength="1000" autocomplete="off" placeholder="Escreva no grupo…"><button class="btn" type="submit">Enviar</button></form></div>`;
     const body = $('#group-thread-body');
     let lastId = 0;
-    const bubble = (message) => `<div class="group-message ${message.mine ? 'mine' : ''}" data-mid="${message.id}">${message.mine ? '' : `<a class="group-message-author" href="${accountPath(message.user.username)}">${esc(message.user.name)}</a>`}<div class="bubble ${message.mine ? 'me' : 'them'}">${esc(message.body)}<small>${hhmm(message.created_at)}</small></div></div>`;
+    const bubble = (message) => `<div class="group-message ${message.mine ? 'mine' : ''}" data-mid="${message.id}">${message.mine ? '' : `<a class="group-message-author" href="${accountPath(message.user.username)}">${esc(message.user.name)}</a>`}<div class="bubble ${message.mine ? 'me' : 'them'}"><span class="msg-text">${msgInner(message)}</span><small>${hhmm(message.created_at)}</small>${msgTools(message)}</div></div>`;
     const add = (messages, shouldScroll = true) => {
       if (!messages.length) return;
       const empty = $('.empty', body);
@@ -71,7 +74,7 @@
       const preview = c.post_id ? `<button type="button" class="collab-post" data-open-post="${c.post_id}">${c.post_image ? `<img src="${esc(c.post_image)}" alt="" />` : ''}<span>${esc(c.post_body || 'Abrir publicação')}</span></button>` : '';
       return `<div class="bubble collab-card ${message.mine ? 'me' : 'them'}" data-mid="${message.id}" data-collab="${c.id}" data-status="${esc(c.status)}"><div class="collab-card-head">${BX.ICON.people}<b>${head}</b></div>${preview}${foot}<small>${hhmm(message.created_at)}</small></div>`;
     };
-    const bubble = (message) => message.collab ? collabBubble(message) : `<div class="bubble ${message.mine ? 'me' : 'them'}" data-mid="${message.id}">${esc(message.body)}<small>${hhmm(message.created_at)}</small></div>`;
+    const bubble = (message) => message.collab ? collabBubble(message) : `<div class="bubble ${message.mine ? 'me' : 'them'}" data-mid="${message.id}"><span class="msg-text">${msgInner(message)}</span><small>${hhmm(message.created_at)}</small>${msgTools(message)}</div>`;
     view.addEventListener('click', (event) => {
       const open = event.target.closest('[data-open-post]');
       if (open) BX.openPost(Number(open.dataset.openPost));
@@ -96,6 +99,40 @@
       } catch { /* polling tolera falhas transitórias */ }
     }, 4000));
   }
+
+  view.addEventListener('click', async (event) => {
+    const edit = event.target.closest('[data-msg-edit]');
+    const del = event.target.closest('[data-msg-del]');
+    const save = event.target.closest('[data-msg-save]');
+    const cancel = event.target.closest('[data-msg-cancel]');
+    if (!edit && !del && !save && !cancel) return;
+    const holder = event.target.closest('[data-mid]');
+    const bubbleEl = event.target.closest('.bubble');
+    if (!holder || !bubbleEl) return;
+    const id = holder.dataset.mid;
+    const kind = state.thread && state.thread.group ? 'group-message' : 'message';
+    const textEl = bubbleEl.querySelector('.msg-text');
+    try {
+      if (edit) {
+        const old = textEl.textContent.replace(/\(editada\)$/, '');
+        bubbleEl.dataset.old = textEl.innerHTML;
+        textEl.innerHTML = `<span class="msg-edit-box"><input maxlength="1000" value="${esc(old)}" /><button type="button" class="btn sm" data-msg-save>Salvar</button><button type="button" class="btn ghost sm" data-msg-cancel>Cancelar</button></span>`;
+        textEl.querySelector('input').focus();
+      } else if (cancel) {
+        textEl.innerHTML = bubbleEl.dataset.old || '';
+      } else if (save) {
+        const value = textEl.querySelector('input').value.trim();
+        if (!value) return;
+        await api(`${kind}/${id}`, { method: 'PATCH', body: { body: value } });
+        textEl.innerHTML = `${esc(value)}<span class="msg-edited">(editada)</span>`;
+      } else if (del) {
+        if (!confirm('Apagar esta mensagem para todos?')) return;
+        await api(`${kind}/${id}`, { method: 'DELETE' });
+        textEl.innerHTML = '<span class="msg-deleted">Mensagem apagada</span>';
+        bubbleEl.querySelector('.msg-tools')?.remove();
+      }
+    } catch (error) { toast(errMsg(error)); }
+  });
 
   forms.message = async (form) => {
     const input = form.body;

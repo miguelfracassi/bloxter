@@ -29,6 +29,18 @@ function getUserId(req) {
   }
 }
 
+// Dados da sessão atual: quem é, qual aparelho (sid) e quando o cookie foi emitido (iat, em segundos).
+function getSessionData(req) {
+  const token = parseCookies(req)[COOKIE];
+  if (!token) return null;
+  try {
+    const data = jwt.verify(token, secret());
+    return data.uid ? { uid: data.uid, sid: typeof data.sid === 'string' ? data.sid : '', iat: Number(data.iat) || 0 } : null;
+  } catch {
+    return null;
+  }
+}
+
 function cookieFlags() {
   return `Path=/; HttpOnly; SameSite=Lax; ${process.env.NODE_ENV === 'development' ? '' : 'Secure; '}`;
 }
@@ -36,35 +48,46 @@ function cookieFlags() {
 // Contas já conectadas neste navegador (cookie assinado, HttpOnly). Só quem fez login de verdade entra na lista.
 const ACCOUNTS_COOKIE = 'bx_accounts';
 
-function getLinked(req) {
+// Lista de contas + quando cada uma entrou neste navegador (ts, em segundos).
+function getLinkedMeta(req) {
   const token = parseCookies(req)[ACCOUNTS_COOKIE];
-  if (!token) return [];
+  if (!token) return { ids: [], ts: {} };
   try {
-    const ids = jwt.verify(token, secret()).ids;
-    return Array.isArray(ids) ? ids.filter((x) => Number.isInteger(x)).slice(0, 10) : [];
+    const data = jwt.verify(token, secret());
+    const ids = Array.isArray(data.ids) ? data.ids.filter((x) => Number.isInteger(x)).slice(0, 10) : [];
+    const ts = data.ts && typeof data.ts === 'object' ? data.ts : {};
+    return { ids, ts };
   } catch {
-    return [];
+    return { ids: [], ts: {} };
   }
 }
 
-function linkedCookie(ids) {
+function getLinked(req) {
+  return getLinkedMeta(req).ids;
+}
+
+function linkedCookie(ids, ts = {}) {
   if (!ids.length) return `${ACCOUNTS_COOKIE}=; ${cookieFlags()}Max-Age=0`;
-  const token = jwt.sign({ ids }, secret(), { expiresIn: MAX_AGE });
+  const keep = {};
+  for (const id of ids) if (ts[id]) keep[id] = ts[id];
+  const token = jwt.sign({ ids, ts: keep }, secret(), { expiresIn: MAX_AGE });
   return `${ACCOUNTS_COOKIE}=${token}; ${cookieFlags()}Max-Age=${MAX_AGE}`;
 }
 
-function setLinked(res, ids) {
+// Mantém as datas de entrada ao tirar contas da lista (passe o req).
+function setLinked(res, ids, req) {
   const prev = res.getHeader('Set-Cookie');
   const list = Array.isArray(prev) ? prev : prev ? [prev] : [];
-  res.setHeader('Set-Cookie', [...list, linkedCookie(ids)]);
+  res.setHeader('Set-Cookie', [...list, linkedCookie(ids, req ? getLinkedMeta(req).ts : {})]);
 }
 
-function setSession(res, uid, req) {
-  const token = jwt.sign({ uid }, secret(), { expiresIn: MAX_AGE });
+function setSession(res, uid, req, sid) {
+  const token = jwt.sign(sid ? { uid, sid } : { uid }, secret(), { expiresIn: MAX_AGE });
   const cookies = [`${COOKIE}=${token}; ${cookieFlags()}Max-Age=${MAX_AGE}`];
   if (req) {
-    const ids = [...getLinked(req).filter((x) => x !== uid), uid].slice(-10);
-    cookies.push(linkedCookie(ids));
+    const meta = getLinkedMeta(req);
+    const ids = [...meta.ids.filter((x) => x !== uid), uid].slice(-10);
+    cookies.push(linkedCookie(ids, { ...meta.ts, [uid]: Math.floor(Date.now() / 1000) }));
   }
   res.setHeader('Set-Cookie', cookies);
 }
@@ -79,8 +102,12 @@ const ADMIN_AGE = 60 * 60 * 12; // 12 horas
 const PREVIEW_COOKIE = 'bx_admin_preview';
 const PREVIEW_AGE = 60 * 60; // 1 hora
 
+// Sem ADMIN_PASSWORD definida na Vercel, o login de administrador fica desativado (senha aleatória a cada início).
+// Antes existia uma senha padrão fraca, que qualquer pessoa poderia adivinhar.
+const FALLBACK_ADMIN_PASSWORD = require('node:crypto').randomBytes(24).toString('hex');
 function adminPassword() {
-  return String(process.env.ADMIN_PASSWORD || '2015');
+  const v = String(process.env.ADMIN_PASSWORD || '');
+  return v.length >= 8 ? v : FALLBACK_ADMIN_PASSWORD;
 }
 
 function isAdmin(req) {
@@ -125,4 +152,4 @@ function isAdminPreview(req) {
   }
 }
 
-module.exports = { getUserId, getLinked, setLinked, setSession, clearSession, adminPassword, isAdmin, setAdmin, clearAdmin, setAdminPreview, clearAdminPreview, isAdminPreview };
+module.exports = { getUserId, getSessionData, getLinkedMeta, getLinked, setLinked, setSession, clearSession, adminPassword, isAdmin, setAdmin, clearAdmin, setAdminPreview, clearAdminPreview, isAdminPreview };

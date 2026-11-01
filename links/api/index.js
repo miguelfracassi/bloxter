@@ -1,11 +1,11 @@
 const crypto = require('node:crypto');
 
 // Se algum módulo falhar ao carregar, devolvemos o erro em JSON (em vez da página de erro da Vercel).
-let bcrypt, getSql, ensureSchema, dbEpoch, getUserId, setSession, clearSession, adminPassword, isAdmin, setAdmin, clearAdmin, setAdminPreview, clearAdminPreview, isAdminPreview, loadError;
+let bcrypt, getSql, ensureSchema, dbEpoch, getUserId, getSessionData, getLinkedMeta, setSession, clearSession, adminPassword, isAdmin, setAdmin, clearAdmin, setAdminPreview, clearAdminPreview, isAdminPreview, loadError;
 try {
   bcrypt = require('bcryptjs');
   ({ getSql, ensureSchema, dbEpoch } = require('../lib/db'));
-  ({ getUserId, getLinked, setLinked, setSession, clearSession, adminPassword, isAdmin, setAdmin, clearAdmin, setAdminPreview, clearAdminPreview, isAdminPreview } = require('../lib/auth'));
+  ({ getUserId, getSessionData, getLinkedMeta, getLinked, setLinked, setSession, clearSession, adminPassword, isAdmin, setAdmin, clearAdmin, setAdminPreview, clearAdminPreview, isAdminPreview } = require('../lib/auth'));
 } catch (e) {
   loadError = e;
 }
@@ -170,6 +170,23 @@ function isUnique(e) {
   return e && e.code === '23505';
 }
 
+// ---------- Segurança da conta ----------
+// "Chrome no Windows", "Safari no iPhone"... a partir do User-Agent (só para mostrar na lista de aparelhos).
+function deviceLabel(ua) {
+  const u = String(ua || '');
+  const os = /iPhone/.test(u) ? 'iPhone' : /iPad/.test(u) ? 'iPad' : /Android/.test(u) ? 'Android' : /Windows/.test(u) ? 'Windows' : /Mac OS X|Macintosh/.test(u) ? 'Mac' : /Linux|X11/.test(u) ? 'Linux' : 'Aparelho';
+  const br = /Instagram/.test(u) ? 'Instagram' : /EdgA?\//.test(u) ? 'Edge' : /OPR\/|Opera/.test(u) ? 'Opera' : /SamsungBrowser/.test(u) ? 'Samsung Internet' : /Firefox|FxiOS/.test(u) ? 'Firefox' : /Chrome|CriOS/.test(u) ? 'Chrome' : /Safari/.test(u) ? 'Safari' : 'Navegador';
+  return `${br} no ${os}`.slice(0, 60);
+}
+// IP parcial (ex.: 189.12.*.*): dá uma pista de onde foi o acesso sem guardar o IP inteiro.
+function ipHint(req) {
+  const ip = String(req.headers['x-forwarded-for'] || '').split(',')[0].trim() || (req.socket && req.socket.remoteAddress) || '';
+  if (/^\d+\.\d+\.\d+\.\d+$/.test(ip)) return ip.split('.').slice(0, 2).join('.') + '.*.*';
+  if (ip.includes(':')) return ip.split(':').slice(0, 2).join(':') + '::*';
+  return '';
+}
+const passwordFailBuckets = new Map();
+
 // ---------- Convidar e Ganhar ----------
 const INVITE_REWARD = 3;          // seguidores para quem convida e para quem entra
 const INVITE_DAILY_LIMIT = 30;    // acima disso em 24 h, os convites ficam "em análise"
@@ -281,14 +298,21 @@ module.exports = async (req, res) => {
     // (admin, avatar, status do site, popup, imagens, bots, OAuth) não pagam essa consulta.
     let banned = null;
     if (me && !['admin', 'avatar', 'banner', 'site', 'popup', 'post-image', 'bot', 'oauth'].includes(a)) {
-      const [acc] = await sql`SELECT banned_at, ban_reason FROM users WHERE id = ${me}`;
-      if (!acc) {
+      const sd = getSessionData(req) || { sid: '', iat: 0 };
+      const [acc] = await sql`SELECT banned_at, ban_reason, EXTRACT(EPOCH FROM tokens_valid_after)::bigint AS tva,
+          (SELECT s.revoked_at IS NULL FROM user_sessions s WHERE s.id = ${sd.sid} AND s.user_id = ${me}) AS s_ok,
+          (SELECT s.last_seen_at < now() - interval '10 minutes' FROM user_sessions s WHERE s.id = ${sd.sid}) AS s_stale
+        FROM users WHERE id = ${me}`;
+      // Sessão válida: aparelho ainda conectado (token com sid) ou, em tokens antigos, emitido depois da última troca de senha.
+      const sessionOk = acc && (sd.sid ? acc.s_ok === true : !acc.tva || sd.iat >= Number(acc.tva));
+      if (!acc || !sessionOk) {
         me = null;
         clearSession(res);
       } else if (acc.banned_at) {
         me = null;
         banned = { reason: acc.ban_reason || '' };
       }
+      if (me && sd.sid && acc.s_stale) await sql`UPDATE user_sessions SET last_seen_at = now() WHERE id = ${sd.sid}`;
     }
     const q = new URLSearchParams(url.search);
     q.delete('__p');
@@ -302,6 +326,13 @@ module.exports = async (req, res) => {
       if (banned) throw new HttpError(403, 'account_banned', { reason: banned.reason });
       if (!me) throw new HttpError(401, 'unauthorized');
       return me;
+    };
+    // Cria o registro do aparelho (para a lista "dispositivos conectados") e grava o cookie de sessão.
+    const startSession = async (userId) => {
+      const sid = crypto.randomBytes(16).toString('hex');
+      await sql`INSERT INTO user_sessions (id, user_id, device, ip_hint) VALUES (${sid}, ${userId}, ${deviceLabel(req.headers['user-agent'])}, ${ipHint(req)})`;
+      setSession(res, userId, req, sid);
+      return sid;
     };
     const recordVerificationDay = async (userId, activity) => {
       const posted = activity === 'post';
@@ -2048,7 +2079,7 @@ module.exports = async (req, res) => {
       }
       let invite = null;
       try { invite = await applyInvite(sql, row.id, d.ref, requestIpHash(req)); } catch (e) { console.error('invite', e); }
-      setSession(res, row.id, req);
+      await startSession(row.id);
       return send({ user: meUser(row), invite }, 201);
     }
 
@@ -2061,13 +2092,13 @@ module.exports = async (req, res) => {
       const ok = row && (await bcrypt.compare(password, row.password_hash));
       if (!ok) throw new HttpError(401, 'invalid_credentials');
       if (row.banned_at) throw new HttpError(403, 'account_banned', { reason: row.ban_reason || '' });
-      setSession(res, row.id, req);
+      await startSession(row.id);
       return send({ user: meUser(row) });
     }
 
     if (a === 'auth' && b === 'logout' && method === 'POST') {
       clearSession(res);
-      if (me) setLinked(res, getLinked(req).filter((x) => x !== me));
+      if (me) setLinked(res, getLinked(req).filter((x) => x !== me), req);
       return send({ ok: true });
     }
 
@@ -2083,7 +2114,7 @@ module.exports = async (req, res) => {
     if (a === 'auth' && b === 'accounts' && method === 'GET') {
       need();
       const { ok, accounts } = await linkedAccounts();
-      setLinked(res, ok);
+      setLinked(res, ok, req);
       return send({ accounts });
     }
     if (a === 'auth' && b === 'switch' && method === 'POST') {
@@ -2091,14 +2122,17 @@ module.exports = async (req, res) => {
       const id = parseInt(readBody(req).id, 10);
       const { ok } = await linkedAccounts();
       if (!ok.includes(id)) throw new HttpError(403, 'forbidden');
-      setSession(res, id, req);
+      // Se a senha/e-mail dessa conta mudou depois que ela entrou neste navegador, precisa entrar de novo.
+      const [target] = await sql`SELECT EXTRACT(EPOCH FROM tokens_valid_after)::bigint AS tva FROM users WHERE id = ${id}`;
+      if (target && target.tva && Number(getLinkedMeta(req).ts[id] || 0) < Number(target.tva)) throw new HttpError(403, 'relogin_required');
+      await startSession(id);
       return send({ ok: true });
     }
     if (a === 'auth' && b === 'remove-account' && method === 'POST') {
       need();
       const id = parseInt(readBody(req).id, 10);
       if (id === me) throw new HttpError(400, 'forbidden');
-      setLinked(res, getLinked(req).filter((x) => x !== id));
+      setLinked(res, getLinked(req).filter((x) => x !== id), req);
       return send({ ok: true });
     }
 
@@ -2873,6 +2907,99 @@ module.exports = async (req, res) => {
       return send({ code });
     }
 
+    // ---------- SEGURANÇA DA CONTA ----------
+    // Confere a senha atual com limite de tentativas (5 erradas em 15 min trava por um tempo).
+    const checkPassword = async (userId, password) => {
+      const now = Date.now();
+      const bucket = (passwordFailBuckets.get(userId) || []).filter((time) => now - time < 900_000);
+      if (bucket.length >= 5) throw new HttpError(429, 'too_many_attempts');
+      const [row] = await sql`SELECT password_hash FROM users WHERE id = ${userId}`;
+      const ok = row && typeof password === 'string' && password && (await bcrypt.compare(password, row.password_hash));
+      if (!ok) {
+        bucket.push(now);
+        passwordFailBuckets.set(userId, bucket);
+        throw new HttpError(403, 'wrong_password');
+      }
+      passwordFailBuckets.delete(userId);
+    };
+    // Depois de trocar senha/e-mail: desconecta todos os aparelhos (inclusive este) e entra de novo só neste.
+    const resetSessions = async (userId) => {
+      await sql`UPDATE users SET tokens_valid_after = date_trunc('second', now()) WHERE id = ${userId}`;
+      await sql`UPDATE user_sessions SET revoked_at = now() WHERE user_id = ${userId} AND revoked_at IS NULL`;
+      await startSession(userId);
+    };
+    if (a === 'account' && b === 'password' && method === 'POST') {
+      const uid = need();
+      const d = readBody(req);
+      const next = typeof d.new_password === 'string' ? d.new_password : '';
+      if (next.length < 8 || next.length > 100) throw new HttpError(400, 'weak_password');
+      await checkPassword(uid, d.current_password);
+      if (next === d.current_password) throw new HttpError(400, 'same_password');
+      await sql`UPDATE users SET password_hash = ${await bcrypt.hash(next, 10)} WHERE id = ${uid}`;
+      await resetSessions(uid);
+      return send({ ok: true });
+    }
+    if (a === 'account' && b === 'email' && method === 'POST') {
+      const uid = need();
+      const d = readBody(req);
+      const email = str(d.email, 254).toLowerCase();
+      if (!EMAIL_RE.test(email)) throw new HttpError(400, 'invalid_email');
+      await checkPassword(uid, d.password);
+      const [dup] = await sql`SELECT id FROM users WHERE email = ${email} AND id <> ${uid}`;
+      if (dup) throw new HttpError(409, 'email_taken');
+      try { await sql`UPDATE users SET email = ${email} WHERE id = ${uid}`; } catch (e) { if (isUnique(e)) throw new HttpError(409, 'email_taken'); throw e; }
+      await resetSessions(uid);
+      return send({ ok: true, email });
+    }
+    if (a === 'account' && b === 'sessions' && !c && method === 'GET') {
+      const uid = need();
+      const sd = getSessionData(req);
+      const sid = sd && sd.sid ? sd.sid : await startSession(uid); // sessão antiga: passa a aparecer na lista
+      const rows = await sql`SELECT id, device, ip_hint, created_at, last_seen_at FROM user_sessions
+        WHERE user_id = ${uid} AND revoked_at IS NULL AND created_at > now() - interval '30 days'
+        ORDER BY last_seen_at DESC LIMIT 30`;
+      res.setHeader('Cache-Control', 'no-store');
+      return send({ sessions: rows.map((r) => ({ id: r.id, device: r.device || 'Aparelho', ip_hint: r.ip_hint, created_at: r.created_at, last_seen_at: r.last_seen_at, current: !!sid && r.id === sid })) });
+    }
+    if (a === 'account' && b === 'sessions' && c === 'revoke-others' && method === 'POST') {
+      const uid = need();
+      const sd = getSessionData(req);
+      const keep = sd && sd.sid ? sd.sid : await startSession(uid);
+      const out = await sql`UPDATE user_sessions SET revoked_at = now() WHERE user_id = ${uid} AND id <> ${keep} AND revoked_at IS NULL RETURNING id`;
+      await sql`UPDATE users SET tokens_valid_after = date_trunc('second', now()) WHERE id = ${uid}`;
+      return send({ ok: true, revoked: out.length });
+    }
+    if (a === 'account' && b === 'sessions' && c && method === 'DELETE') {
+      const uid = need();
+      const out = await sql`UPDATE user_sessions SET revoked_at = now() WHERE id = ${c} AND user_id = ${uid} AND revoked_at IS NULL RETURNING id`;
+      if (!out.length) throw new HttpError(404, 'not_found');
+      const sd = getSessionData(req);
+      if (sd && sd.sid === c) clearSession(res);
+      return send({ ok: true, current: !!(sd && sd.sid === c) });
+    }
+
+    // ---------- EDITAR / APAGAR MENSAGENS (só as suas) ----------
+    if ((a === 'message' || a === 'group-message') && b && (method === 'PATCH' || method === 'DELETE')) {
+      const uid = need();
+      const id = parseInt(b, 10);
+      if (!Number.isInteger(id) || id < 1) throw new HttpError(404, 'not_found');
+      const group = a === 'group-message';
+      if (method === 'DELETE') {
+        const out = group
+          ? await sql`UPDATE group_messages SET body = '', deleted_at = now() WHERE id = ${id} AND sender_id = ${uid} AND deleted_at IS NULL RETURNING id`
+          : await sql`UPDATE messages SET body = '', deleted_at = now() WHERE id = ${id} AND sender_id = ${uid} AND deleted_at IS NULL AND collab_id IS NULL RETURNING id`;
+        if (!out.length) throw new HttpError(404, 'not_found');
+        return send({ ok: true, id });
+      }
+      const body = str(readBody(req).body, 1000);
+      if (!body) throw new HttpError(400, 'message_empty');
+      const out = group
+        ? await sql`UPDATE group_messages SET body = ${body}, edited_at = now() WHERE id = ${id} AND sender_id = ${uid} AND deleted_at IS NULL RETURNING id, body, edited_at`
+        : await sql`UPDATE messages SET body = ${body}, edited_at = now() WHERE id = ${id} AND sender_id = ${uid} AND deleted_at IS NULL AND collab_id IS NULL RETURNING id, body, edited_at`;
+      if (!out.length) throw new HttpError(404, 'not_found');
+      return send({ ok: true, id, body: out[0].body, edited: true });
+    }
+
     if (a === 'suggestions' && method === 'GET') {
       need();
       const rows = await sql`
@@ -3003,12 +3130,12 @@ module.exports = async (req, res) => {
       const after = Number.parseInt(q.get('after'), 10) || 0;
       let rows;
       if (after > 0) {
-        rows = await sql`SELECT m.id, m.sender_id, m.body, m.created_at, u.username, u.name, u.avatar_v FROM group_messages m JOIN users u ON u.id = m.sender_id WHERE m.group_id = ${groupId} AND m.id > ${after} ORDER BY m.id ASC LIMIT 200`;
+        rows = await sql`SELECT m.id, m.sender_id, m.body, m.created_at, m.edited_at, m.deleted_at, u.username, u.name, u.avatar_v FROM group_messages m JOIN users u ON u.id = m.sender_id WHERE m.group_id = ${groupId} AND m.id > ${after} ORDER BY m.id ASC LIMIT 200`;
       } else {
-        rows = await sql`SELECT m.id, m.sender_id, m.body, m.created_at, u.username, u.name, u.avatar_v FROM group_messages m JOIN users u ON u.id = m.sender_id WHERE m.group_id = ${groupId} ORDER BY m.id DESC LIMIT 100`;
+        rows = await sql`SELECT m.id, m.sender_id, m.body, m.created_at, m.edited_at, m.deleted_at, u.username, u.name, u.avatar_v FROM group_messages m JOIN users u ON u.id = m.sender_id WHERE m.group_id = ${groupId} ORDER BY m.id DESC LIMIT 100`;
         rows.reverse();
       }
-      return send({ group, members: members.map((m) => ({ id: m.id, username: m.username, name: m.name, avatar: avatarUrl(m.id, m.avatar_v), ...flags(m) })), messages: rows.map((m) => ({ id: m.id, mine: m.sender_id === me, body: m.body, created_at: m.created_at, user: { id: m.sender_id, username: m.username, name: m.name, avatar: avatarUrl(m.sender_id, m.avatar_v) } })) });
+      return send({ group, members: members.map((m) => ({ id: m.id, username: m.username, name: m.name, avatar: avatarUrl(m.id, m.avatar_v), ...flags(m) })), messages: rows.map((m) => ({ id: m.id, mine: m.sender_id === me, body: m.deleted_at ? '' : m.body, deleted: !!m.deleted_at, edited: !!m.edited_at, created_at: m.created_at, user: { id: m.sender_id, username: m.username, name: m.name, avatar: avatarUrl(m.sender_id, m.avatar_v) } })) });
     }
 
     if (a === 'groups' && b && c === 'messages' && method === 'POST') {
@@ -3128,7 +3255,7 @@ module.exports = async (req, res) => {
       let rows;
       if (after > 0) {
         rows = await sql`
-          SELECT m.id, m.sender_id, m.body, m.created_at, m.collab_id, pc.status AS collab_status, pc.user_id AS collab_user, pc.post_id AS collab_post,
+          SELECT m.id, m.sender_id, m.body, m.created_at, m.edited_at, m.deleted_at, m.collab_id, pc.status AS collab_status, pc.user_id AS collab_user, pc.post_id AS collab_post,
             cp.body AS collab_post_body, (SELECT pi.id FROM post_images pi WHERE pi.post_id = cp.id ORDER BY pi.pos, pi.id LIMIT 1) AS collab_post_image
           FROM messages m LEFT JOIN post_collabs pc ON pc.id = m.collab_id LEFT JOIN posts cp ON cp.id = pc.post_id
           WHERE ((m.sender_id = ${me} AND m.receiver_id = ${other.id}) OR (m.sender_id = ${other.id} AND m.receiver_id = ${me}))
@@ -3136,7 +3263,7 @@ module.exports = async (req, res) => {
           ORDER BY m.id ASC LIMIT 200`;
       } else {
         rows = await sql`
-          SELECT m.id, m.sender_id, m.body, m.created_at, m.collab_id, pc.status AS collab_status, pc.user_id AS collab_user, pc.post_id AS collab_post,
+          SELECT m.id, m.sender_id, m.body, m.created_at, m.edited_at, m.deleted_at, m.collab_id, pc.status AS collab_status, pc.user_id AS collab_user, pc.post_id AS collab_post,
             cp.body AS collab_post_body, (SELECT pi.id FROM post_images pi WHERE pi.post_id = cp.id ORDER BY pi.pos, pi.id LIMIT 1) AS collab_post_image
           FROM messages m LEFT JOIN post_collabs pc ON pc.id = m.collab_id LEFT JOIN posts cp ON cp.id = pc.post_id
           WHERE (m.sender_id = ${me} AND m.receiver_id = ${other.id}) OR (m.sender_id = ${other.id} AND m.receiver_id = ${me})
@@ -3147,7 +3274,7 @@ module.exports = async (req, res) => {
       return send({
         user: { id: other.id, username: other.username, name: other.name, avatar: avatarUrl(other.id, other.avatar_v), ...flags(other) },
         messages: rows.map((r) => ({
-          id: r.id, mine: r.sender_id === me, body: r.body, created_at: r.created_at,
+          id: r.id, mine: r.sender_id === me, body: r.deleted_at ? '' : r.body, deleted: !!r.deleted_at, edited: !!r.edited_at, created_at: r.created_at,
           collab: r.collab_id ? {
             id: r.collab_id, status: r.collab_status || 'pending', post_id: r.collab_post, post_body: r.collab_post_body || '',
             post_image: r.collab_post_image ? postMediaPath(r.collab_post_image) : null,

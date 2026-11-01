@@ -11,6 +11,7 @@
         <button class="btn sm" type="button" role="tab" aria-selected="true" data-settings-tab="profile">${t('settings.profile')}</button>
         <button class="btn ghost sm" type="button" role="tab" aria-selected="false" data-settings-tab="my-info">Minhas Informações</button>
         <button class="btn ghost sm" type="button" role="tab" aria-selected="false" data-settings-tab="accessibility">Acessibilidade</button>
+        <button class="btn ghost sm" type="button" role="tab" aria-selected="false" data-settings-tab="security">Segurança</button>
         <button class="btn ghost sm" type="button" role="tab" aria-selected="false" data-settings-tab="app">Aplicativo</button>
       </div>
       <div class="settings">
@@ -88,6 +89,36 @@
             <button type="button" data-act="appearanceset" data-val="normal" class="${state.appearance === 'normal' ? 'on' : ''}">Normal</button>
             <button type="button" data-act="appearanceset" data-val="liquid" class="${state.appearance === 'liquid' ? 'on' : ''}" ${state.features.liquid_glass ? '' : 'disabled title="Ainda não liberado"'}>Liquid Glass</button>
           </div>
+        </div>
+      </section>
+      <section data-settings-panel="security" role="tabpanel" hidden>
+        <h3>Segurança da conta</h3>
+        <div class="box sec-box">
+          <h4>Trocar senha</h4>
+          <p class="hint">Ao trocar, todos os outros aparelhos são desconectados.</p>
+          <form id="sec-pass" novalidate>
+            <div class="form-error" role="alert"></div>
+            <div class="field"><label for="sp-cur">Senha atual</label><input id="sp-cur" name="current_password" type="password" autocomplete="current-password" required /></div>
+            <div class="field"><label for="sp-new">Nova senha</label><input id="sp-new" name="new_password" type="password" autocomplete="new-password" minlength="8" required /></div>
+            <div class="field"><label for="sp-new2">Repita a nova senha</label><input id="sp-new2" name="again" type="password" autocomplete="new-password" minlength="8" required /></div>
+            <button class="btn" type="submit">Salvar nova senha</button>
+          </form>
+        </div>
+        <div class="box sec-box">
+          <h4>Trocar e-mail</h4>
+          <p class="hint">E-mail atual: <b id="sec-email">${esc(me.email || '')}</b>. Por segurança, pedimos sua senha.</p>
+          <form id="sec-mail" novalidate>
+            <div class="form-error" role="alert"></div>
+            <div class="field"><label for="sm-mail">Novo e-mail</label><input id="sm-mail" name="email" type="email" autocomplete="email" required /></div>
+            <div class="field"><label for="sm-pass">Sua senha</label><input id="sm-pass" name="password" type="password" autocomplete="current-password" required /></div>
+            <button class="btn" type="submit">Salvar e-mail</button>
+          </form>
+        </div>
+        <div class="box sec-box">
+          <h4>Aparelhos conectados</h4>
+          <p class="hint">Se algum acesso não for seu, desconecte e troque a senha.</p>
+          <div id="sec-devices" class="sec-devices"><div class="loading">Carregando…</div></div>
+          <button class="btn danger sm" type="button" id="sec-out-all">Desconectar todos os outros</button>
         </div>
       </section>
       <section data-settings-panel="app" role="tabpanel" hidden>
@@ -230,4 +261,58 @@
   };
 
   settingsView(v);
+
+  // ---------- Segurança: senha, e-mail e aparelhos ----------
+  const secMsg = (f, text) => { f.querySelector('.form-error').textContent = text || ''; };
+  async function loadDevices() {
+    const box = $('#sec-devices');
+    try {
+      const { sessions } = await api('account/sessions');
+      box.innerHTML = sessions.length ? sessions.map((x) => `<div class="sec-device">
+          <span class="sec-device-meta"><b>${esc(x.device)}${x.current ? ' <em>(este aparelho)</em>' : ''}</b>
+            <small>${x.ip_hint ? `IP ${esc(x.ip_hint)} · ` : ''}ativo ${esc(ago(x.last_seen_at))} · entrou em ${esc(new Date(x.created_at).toLocaleDateString('pt-BR'))}</small></span>
+          <button class="btn ghost sm" type="button" data-sec-out="${esc(x.id)}">${x.current ? 'Sair' : 'Desconectar'}</button>
+        </div>`).join('') : '<div class="empty">Nenhum aparelho.</div>';
+    } catch (e) { box.innerHTML = `<div class="empty">${esc(errMsg(e))}</div>`; }
+  }
+  v.querySelector('[data-settings-tab="security"]').addEventListener('click', loadDevices);
+  if (location.hash === '#security') loadDevices();
+  $('#sec-pass').addEventListener('submit', async (ev) => {
+    ev.preventDefault();
+    const f = ev.currentTarget;
+    secMsg(f, '');
+    if (f.new_password.value !== f.again.value) return secMsg(f, 'As senhas novas não são iguais.');
+    const btn = f.querySelector('button[type=submit]'); btn.disabled = true;
+    try {
+      await api('account/password', { method: 'POST', body: { current_password: f.current_password.value, new_password: f.new_password.value } });
+      f.reset(); toast('Senha alterada. Os outros aparelhos foram desconectados.'); loadDevices();
+    } catch (e) { secMsg(f, errMsg(e)); }
+    btn.disabled = false;
+  });
+  $('#sec-mail').addEventListener('submit', async (ev) => {
+    ev.preventDefault();
+    const f = ev.currentTarget;
+    secMsg(f, '');
+    const btn = f.querySelector('button[type=submit]'); btn.disabled = true;
+    try {
+      const r = await api('account/email', { method: 'POST', body: { email: f.email.value, password: f.password.value } });
+      $('#sec-email').textContent = r.email; f.reset(); toast('E-mail alterado. Os outros aparelhos foram desconectados.'); loadDevices();
+    } catch (e) { secMsg(f, errMsg(e)); }
+    btn.disabled = false;
+  });
+  v.addEventListener('click', async (ev) => {
+    const out = ev.target.closest('[data-sec-out]');
+    const all = ev.target.closest('#sec-out-all');
+    try {
+      if (out) {
+        const r = await api(`account/sessions/${out.dataset.secOut}`, { method: 'DELETE' });
+        if (r.current) { location.href = '/login'; return; }
+        toast('Aparelho desconectado.'); loadDevices();
+      } else if (all) {
+        if (!confirm('Desconectar todos os outros aparelhos?')) return;
+        const r = await api('account/sessions/revoke-others', { method: 'POST' });
+        toast(`${r.revoked} aparelho(s) desconectado(s).`); loadDevices();
+      }
+    } catch (e) { toast(errMsg(e)); }
+  });
 })();

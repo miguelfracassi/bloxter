@@ -476,6 +476,23 @@ async function createAll() {
   await s`CREATE INDEX IF NOT EXISTS post_collabs_post_idx ON post_collabs (post_id, status)`;
   await s`ALTER TABLE messages ADD COLUMN IF NOT EXISTS collab_id INTEGER REFERENCES post_collabs(id) ON DELETE SET NULL`;
 
+  // Segurança da conta: aparelhos conectados (1 linha por login) e edição/exclusão de mensagens.
+  await s`ALTER TABLE users ADD COLUMN IF NOT EXISTS tokens_valid_after TIMESTAMPTZ`;
+  await s`CREATE TABLE IF NOT EXISTS user_sessions (
+    id TEXT PRIMARY KEY,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    device TEXT NOT NULL DEFAULT '',
+    ip_hint TEXT NOT NULL DEFAULT '',
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    last_seen_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    revoked_at TIMESTAMPTZ
+  )`;
+  await s`CREATE INDEX IF NOT EXISTS user_sessions_user_idx ON user_sessions (user_id, revoked_at)`;
+  await s`ALTER TABLE messages ADD COLUMN IF NOT EXISTS edited_at TIMESTAMPTZ`;
+  await s`ALTER TABLE messages ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ`;
+  await s`ALTER TABLE group_messages ADD COLUMN IF NOT EXISTS edited_at TIMESTAMPTZ`;
+  await s`ALTER TABLE group_messages ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ`;
+
 }
 
 // Cria as tabelas (idempotente). Várias requisições podem chegar ao mesmo tempo
