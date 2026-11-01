@@ -2,7 +2,15 @@
   const app = document.getElementById('developers-app');
   const esc = (value) => String(value ?? '').replace(/[&<>"']/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const api = async (path, method = 'GET', body) => {
-    const response = await fetch(`/api/${path}`, { method, credentials: 'same-origin', headers: body ? {'Content-Type':'application/json'} : {}, body: body ? JSON.stringify(body) : undefined });
+    // Se o servidor/banco não responder em 12 s, mostra erro em vez de ficar "Carregando" para sempre.
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 12000);
+    let response;
+    try {
+      response = await fetch(`/api/${path}`, { method, credentials: 'same-origin', signal: ctrl.signal, headers: body ? {'Content-Type':'application/json'} : {}, body: body ? JSON.stringify(body) : undefined });
+    } catch (e) {
+      const error = new Error('timeout'); error.status = 0; throw error;
+    } finally { clearTimeout(timer); }
     const data = await response.json().catch(() => ({}));
     if (!response.ok) { const error = new Error(data.error || 'request_failed'); error.status = response.status; throw error; }
     return data;
@@ -25,6 +33,6 @@
     app.querySelector('#dev-logout').addEventListener('click', async () => { await api('admin/logout','POST').catch(()=>{}); login(); });
   }
   function toast(message) { const el=document.getElementById('toast'); el.textContent=message; el.classList.add('show'); clearTimeout(toast.timer); toast.timer=setTimeout(()=>el.classList.remove('show'),2500); }
-  async function dashboard() { try { settings = await api('admin/maintenance'); render(); } catch (e) { if(e.status===401) login(); else app.innerHTML='<div class="ads-empty">Não foi possível carregar o painel. Atualize a página.</div>'; } }
+  async function dashboard() { try { settings = await api('admin/maintenance'); render(); } catch (e) { if(e.status===401) login(); else { app.innerHTML='<div class="ads-empty">Não foi possível carregar o painel (o servidor ou o banco de dados não respondeu).<br><br><button class="btn sm" id="dev-retry" type="button">Tentar de novo</button></div>'; app.querySelector('#dev-retry').addEventListener('click', () => { app.innerHTML='<div class="ads-loading">Carregando painel…</div>'; dashboard(); }); } } }
   api('admin/me').then(dashboard).catch(()=>login());
 })();

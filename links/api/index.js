@@ -285,6 +285,23 @@ module.exports = async (req, res) => {
     const e5 = parts[4];
     // Diagnóstico: /api/health testa variáveis, módulos e banco de verdade.
     if (a === 'health') return require('./health')(req, res);
+    // Login/saída/"estou logado?" do administrador não usam o banco. Ficam antes dele para o painel
+    // (/developers-services, /administracao) abrir mesmo quando o banco está fora do ar ou lento.
+    if (a === 'admin' && b === 'login' && method === 'POST') {
+      const d0 = readBody(req);
+      const pw = typeof d0.password === 'string' ? d0.password : '';
+      if (pw !== adminPassword()) {
+        await new Promise((r) => setTimeout(r, 600));
+        throw new HttpError(401, 'wrong_password');
+      }
+      setAdmin(res);
+      return res.status(200).json({ ok: true });
+    }
+    if (a === 'admin' && b === 'logout' && method === 'POST') {
+      clearAdmin(res);
+      return res.status(200).json({ ok: true });
+    }
+    if (a === 'admin' && b === 'me' && method === 'GET' && isAdmin(req)) return res.status(200).json({ ok: true });
     await ensureSchema();
     const sql = getSql();
     // Busca "site aberto" já agora, em paralelo com as outras consultas iniciais (usado mais abaixo).

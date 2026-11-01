@@ -14,7 +14,7 @@ function makePgSql(url) {
     ssl: local ? false : { rejectUnauthorized: false },
     max: 3, // função serverless: poucas conexões por instância (use a URL do pooler, porta 6543)
     idleTimeoutMillis: 10000,
-    connectionTimeoutMillis: 8000,
+    connectionTimeoutMillis: 5000,
   });
   pool.on('error', () => {}); // conexão ociosa derrubada pelo servidor não deve derrubar a função
   // Mesma forma do driver do Neon: sql`SELECT ... ${valor}` devolve a lista de linhas.
@@ -547,6 +547,8 @@ function ensureSchema() {
         } catch (e) {
           last = e;
           if (/DATABASE_URL/.test(String(e && e.message))) throw e;
+          // Só tenta de novo em conflito entre instâncias criando a mesma tabela; banco fora do ar/cota estourada falha na hora.
+          if (!['23505', '42P07', '42710', '42P06', '40001', '40P01', '55P03', 'XX000'].includes(e && e.code)) throw e;
           await new Promise((r) => setTimeout(r, 200 * (i + 1)));
         }
       }
