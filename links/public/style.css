@@ -1459,3 +1459,92 @@ img { display: block; max-width: 100%; }
 .danger-zone { border-color: #d92d2d; }
 .danger-zone h4 { color: #e04a4a; }
 :root[data-theme="light"] .danger-zone h4 { color: #b01f1f; }
+
+/* =====================================================================
+   LIQUID GLASS — barras (topo, abas, barra do celular, menus, avisos)
+   Só vale com data-appearance='liquid'. Vidro fosco com borda de luz
+   no topo, brilho interno e sombra suave, como o vidro do iOS.
+   ===================================================================== */
+:root[data-appearance='liquid'] {
+  --lgb-bg: color-mix(in srgb, var(--bg) 38%, transparent);
+  --lgb-blur: blur(22px) saturate(180%) brightness(1.06);
+  --lgb-rim: rgba(255,255,255,.20);
+  --lgb-rim-top: rgba(255,255,255,.55);
+  --lgb-shadow: 0 14px 34px -14px rgba(0,0,0,.6), 0 2px 8px -2px rgba(0,0,0,.35);
+}
+:root[data-appearance='liquid'][data-theme='light'] {
+  --lgb-bg: color-mix(in srgb, #fff 46%, transparent);
+  --lgb-rim: rgba(255,255,255,.7);
+  --lgb-rim-top: #fff;
+  --lgb-shadow: 0 14px 34px -16px rgba(30,40,80,.35), 0 2px 8px -2px rgba(30,40,80,.18);
+}
+/* barras fixas do topo */
+:root[data-appearance='liquid'] .page-head,
+:root[data-appearance='liquid'] .topbar {
+  background: var(--lgb-bg);
+  -webkit-backdrop-filter: var(--lgb-blur);
+  backdrop-filter: var(--lgb-blur);
+  border-bottom: 1px solid var(--lgb-rim);
+  box-shadow: inset 0 1px 0 var(--lgb-rim-top), 0 10px 26px -18px rgba(0,0,0,.55);
+}
+/* menus que abrem por cima */
+:root[data-appearance='liquid'] .menu-pop,
+:root[data-appearance='liquid'] .acct-pop,
+:root[data-appearance='liquid'] .toast,
+:root[data-appearance='liquid'] .collab-suggest {
+  background: var(--lgb-bg);
+  -webkit-backdrop-filter: var(--lgb-blur);
+  backdrop-filter: var(--lgb-blur);
+  border: 1px solid var(--lgb-rim);
+  box-shadow: inset 0 1.5px 0 var(--lgb-rim-top), inset 0 -12px 18px -14px rgba(255,255,255,.18), var(--lgb-shadow);
+}
+/* abas e seletores */
+:root[data-appearance='liquid'] .tabs,
+:root[data-appearance='liquid'] .setting-tabs {
+  background: var(--lgb-bg);
+  -webkit-backdrop-filter: var(--lgb-blur);
+  backdrop-filter: var(--lgb-blur);
+  border-bottom: 1px solid var(--lgb-rim);
+}
+:root[data-appearance='liquid'] .tabs button.on {
+  background: linear-gradient(180deg, var(--lg-g-hi), var(--lg-g-lo));
+  box-shadow: inset 0 1.5px 0 var(--lg-rim-top), 0 8px 18px -10px var(--lg-drop);
+  border-radius: 999px;
+}
+/* botão da conta (seta) e botão flutuante de publicar */
+:root[data-appearance='liquid'] .me-chev {
+  background: linear-gradient(180deg, var(--lg-g-hi), var(--lg-g-lo));
+  border: 1px solid var(--lgb-rim);
+  box-shadow: inset 0 1px 0 var(--lg-rim-top);
+  -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px);
+}
+:root[data-appearance='liquid'] .mobile-compose {
+  background: linear-gradient(180deg, var(--lg-hi), var(--lg-lo));
+  color: var(--lg-fg);
+  border: 1.5px solid var(--lg-rim);
+  -webkit-backdrop-filter: blur(16px) saturate(170%); backdrop-filter: blur(16px) saturate(170%);
+  box-shadow: inset 0 1.5px 0 var(--lg-rim-top), inset 0 -14px 18px -12px var(--lg-glow), 0 14px 28px -12px var(--lg-drop);
+}
+/* celular: a barra de baixo vira uma pílula de vidro flutuante */
+@media (max-width: 720px) {
+  :root[data-appearance='liquid'] .tabbar {
+    left: 12px; right: 12px; bottom: calc(10px + env(safe-area-inset-bottom));
+    border-radius: 30px; border: 1px solid var(--lgb-rim); border-top-color: var(--lgb-rim-top);
+    background: var(--lgb-bg);
+    -webkit-backdrop-filter: var(--lgb-blur); backdrop-filter: var(--lgb-blur);
+    box-shadow: inset 0 1.5px 0 var(--lgb-rim-top), inset 0 -12px 18px -14px rgba(255,255,255,.18), var(--lgb-shadow);
+    padding: 6px 6px; 
+  }
+  :root[data-appearance='liquid'] .tabbar a, :root[data-appearance='liquid'] .tabbar button { border-radius: 22px; }
+  :root[data-appearance='liquid'] .main { padding-bottom: 92px; }
+  :root[data-appearance='liquid'] .mobile-compose { bottom: calc(92px + env(safe-area-inset-bottom)); }
+  :root[data-appearance='liquid'] .menu-pop { bottom: calc(84px + env(safe-area-inset-bottom)); }
+  :root[data-appearance='liquid'] .acct-pop { bottom: calc(84px + env(safe-area-inset-bottom)); }
+}
+@media (prefers-reduced-transparency: reduce) {
+  :root[data-appearance='liquid'] .page-head, :root[data-appearance='liquid'] .topbar, :root[data-appearance='liquid'] .menu-pop,
+  :root[data-appearance='liquid'] .acct-pop, :root[data-appearance='liquid'] .toast, :root[data-appearance='liquid'] .tabbar,
+  :root[data-appearance='liquid'] .tabs, :root[data-appearance='liquid'] .setting-tabs, :root[data-appearance='liquid'] .mobile-compose {
+    -webkit-backdrop-filter: none; backdrop-filter: none; background: var(--bg);
+  }
+}
