@@ -237,6 +237,7 @@
       'err.invalid_email': 'Digite um e-mail válido.',
       'err.weak_password': 'A senha precisa ter pelo menos 8 caracteres.',
       'err.wrong_password': 'Senha atual incorreta.',
+      'err.confirm_mismatch': 'O nome de usuário digitado não confere.',
       'err.same_password': 'A nova senha precisa ser diferente da atual.',
       'err.too_many_attempts': 'Muitas tentativas erradas. Aguarde 15 minutos e tente de novo.',
       'err.relogin_required': 'Por segurança, entre nesta conta de novo com a senha.',
@@ -520,6 +521,7 @@
       'err.invalid_email': 'Enter a valid email.',
       'err.weak_password': 'Password must have at least 8 characters.',
       'err.wrong_password': 'Wrong current password.',
+      'err.confirm_mismatch': 'The username you typed does not match.',
       'err.same_password': 'The new password must be different from the current one.',
       'err.too_many_attempts': 'Too many wrong attempts. Wait 15 minutes and try again.',
       'err.relogin_required': 'For security, sign in to this account again with your password.',
@@ -1095,6 +1097,7 @@
   }
 
   const ICON = {
+    chevDown: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>',
     gift: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="8" width="18" height="4" rx="1"/><path d="M12 8v13M5 12v8a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-8"/><path d="M7.5 8a2.5 2.5 0 0 1 0-5C10 3 12 8 12 8s2-5 4.5-5a2.5 2.5 0 0 1 0 5"/></svg>',
     people: '<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><circle cx=\"9\" cy=\"8\" r=\"3\"/><path d=\"M3 19v-1a6 6 0 0 1 12 0v1M16 5.5a3 3 0 0 1 0 5.8M18 14a5 5 0 0 1 3 4v1\"/></svg>',
     home: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11l9-8 9 8"/><path d="M5 10v10h5v-6h4v6h5V10"/></svg>',
@@ -1258,10 +1261,13 @@
             <a href="/settings" data-nav="settings">${ICON.cog}<span class="lbl" data-t="nav.settings"></span></a>
           </nav>
           <a class="btn lg block post-btn" href="/home" data-act="postnow"><span class="lbl" data-t="post"></span></a>
-          <a class="me-card" href="${esc(mine)}">
-            <span data-me-avatar></span>
-            <span class="meta"><b data-me-name></b><span data-me-user></span></span>
-          </a>
+          <div class="me-wrap">
+            <a class="me-card" href="${esc(mine)}">
+              <span data-me-avatar></span>
+              <span class="meta"><b data-me-name></b><span data-me-user></span></span>
+            </a>
+            <button type="button" class="me-chev" data-acct-open aria-label="Trocar de conta" aria-haspopup="true" title="Trocar de conta">${ICON.chevDown}</button>
+          </div>
         </aside>
         <main class="main" id="view"></main>
         <aside class="right">
@@ -1292,6 +1298,7 @@
     loadSuggestions();
     updateBadge();
     setupAccountSwitcher();
+    bindDesktopAccountMenu();
   }
 
   // ---------- Seletor de contas (ícone de perfil do menu inferior) ----------
@@ -1305,7 +1312,7 @@
     try { await api('auth/switch', { method: 'POST', body: { id } }); location.reload(); } catch (e) { toast(errMsg(e)); }
   }
   function closeAccountMenu() { document.getElementById('acct-pop')?.remove(); }
-  async function openAccountMenu() {
+  async function openAccountMenu(anchor) {
     closeAccountMenu();
     await loadAccounts();
     const pop = document.createElement('div');
@@ -1319,8 +1326,15 @@
         </div>`).join('')
       + `<a class="acct-link" href="/login?add=1" role="menuitem">${esc(t('acct.addExisting'))}</a>
          <a class="acct-link" href="/signup?add=1" role="menuitem">${esc(t('acct.create'))}</a>
+         <a class="acct-link" href="/settings#security" role="menuitem">Segurança e excluir conta</a>
          <button type="button" class="acct-link acct-out" data-act="logout" role="menuitem">${esc(t('acct.logout', { u: state.me.username }))}</button>`;
     document.body.appendChild(pop);
+    if (anchor) { // computador: abre acima do botão da conta, na barra lateral
+      const r = anchor.getBoundingClientRect();
+      pop.classList.add('desk');
+      pop.style.left = `${Math.max(8, Math.min(r.left, window.innerWidth - 308))}px`;
+      pop.style.bottom = `${Math.max(8, window.innerHeight - r.top + 8)}px`;
+    }
     pop.addEventListener('click', async (e) => {
       const rm = e.target.closest('[data-acct-rm]');
       if (rm) {
@@ -1334,9 +1348,20 @@
       switchAccount(id);
     });
     setTimeout(() => {
-      const off = (e) => { if (!pop.contains(e.target)) { closeAccountMenu(); document.removeEventListener('pointerdown', off, true); } };
+      const off = (e) => { if (!pop.contains(e.target) && !e.target.closest('[data-acct-open]')) { closeAccountMenu(); document.removeEventListener('pointerdown', off, true); } };
       document.addEventListener('pointerdown', off, true);
     }, 0);
+  }
+  // Computador: botão com seta para baixo ao lado da foto de perfil abre a troca de contas.
+  function bindDesktopAccountMenu() {
+    const btn = $('.side [data-acct-open]');
+    if (!btn || btn.dataset.ready) return;
+    btn.dataset.ready = '1';
+    btn.addEventListener('click', (e) => {
+      e.preventDefault(); e.stopPropagation();
+      if (document.getElementById('acct-pop')) { closeAccountMenu(); return; }
+      openAccountMenu(btn.closest('.me-wrap') || btn);
+    });
   }
   function setupAccountSwitcher() {
     const btn = $('.tabbar [data-nav="profile"]');

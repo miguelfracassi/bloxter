@@ -1447,3 +1447,15 @@ img { display: block; max-width: 100%; }
 .msg-edit-box { display: flex; gap: 6px; margin-top: 4px; }
 .msg-edit-box input { flex: 1; min-width: 0; border: 1px solid var(--line); border-radius: 12px; padding: 6px 10px; background: var(--bg); color: var(--fg); font: 500 13px var(--font); }
 @media (hover: none) { .bubble.me .msg-tools, .group-message.mine .msg-tools { display: flex; } }
+
+/* Troca de contas no computador (seta ao lado da foto de perfil) */
+.side .me-wrap { margin-top: auto; position: relative; }
+.side .me-wrap .me-card { margin-top: 0; padding-right: 46px; }
+.me-chev { position: absolute; right: 8px; top: 50%; transform: translateY(-50%); width: 32px; height: 32px; border-radius: 50%; display: grid; place-items: center; color: var(--fg2); background: transparent; border: 0; cursor: pointer; }
+.me-chev:hover { background: var(--hover); color: var(--fg); }
+.me-chev svg { width: 18px; height: 18px; }
+.acct-pop.desk { transform: none; display: flex !important; }
+@media (max-width: 1100px) { .me-chev { display: none; } .side .me-wrap .me-card { padding-right: 6px; } }
+.danger-zone { border-color: #d92d2d; }
+.danger-zone h4 { color: #e04a4a; }
+:root[data-theme="light"] .danger-zone h4 { color: #b01f1f; }

@@ -2968,6 +2968,18 @@ module.exports = async (req, res) => {
       await resetSessions(uid);
       return send({ ok: true, email });
     }
+    // Excluir a própria conta (definitivo): pede a senha e o nome de usuário. Posts, mensagens, curtidas etc. saem junto.
+    if (a === 'account' && b === 'delete' && method === 'POST') {
+      const uid = need();
+      const d = readBody(req);
+      const [u] = await sql`SELECT username FROM users WHERE id = ${uid}`;
+      if (!u || cleanUsername(d.confirm) !== u.username) throw new HttpError(400, 'confirm_mismatch');
+      await checkPassword(uid, d.password);
+      await sql`DELETE FROM users WHERE id = ${uid}`;
+      setLinked(res, getLinked(req).filter((x) => x !== uid), req);
+      clearSession(res);
+      return send({ ok: true });
+    }
     if (a === 'account' && b === 'sessions' && !c && method === 'GET') {
       const uid = need();
       const sd = getSessionData(req);

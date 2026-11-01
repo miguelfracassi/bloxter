@@ -120,6 +120,16 @@
           <div id="sec-devices" class="sec-devices"><div class="loading">Carregando…</div></div>
           <button class="btn danger sm" type="button" id="sec-out-all">Desconectar todos os outros</button>
         </div>
+        <div class="box sec-box danger-zone">
+          <h4>Excluir conta</h4>
+          <p class="hint">Isso é definitivo: seu perfil, posts, mensagens, curtidas e seguidores são apagados e não dá para recuperar.</p>
+          <form id="sec-del" novalidate>
+            <div class="form-error" role="alert"></div>
+            <div class="field"><label for="sd-user">Digite seu nome de usuário (@${esc(me.username)}) para confirmar</label><input id="sd-user" name="confirm" autocomplete="off" autocapitalize="none" required /></div>
+            <div class="field"><label for="sd-pass">Sua senha</label><input id="sd-pass" name="password" type="password" autocomplete="current-password" required /></div>
+            <button class="btn danger" type="submit">Excluir minha conta para sempre</button>
+          </form>
+        </div>
       </section>
       <section data-settings-panel="app" role="tabpanel" hidden>
         <h3>Aplicativo</h3>
@@ -314,5 +324,16 @@
         toast(`${r.revoked} aparelho(s) desconectado(s).`); loadDevices();
       }
     } catch (e) { toast(errMsg(e)); }
+  });
+  $('#sec-del').addEventListener('submit', async (ev) => {
+    ev.preventDefault();
+    const f = ev.currentTarget;
+    secMsg(f, '');
+    if (!confirm('Tem certeza? Sua conta será apagada para sempre.')) return;
+    const btn = f.querySelector('button[type=submit]'); btn.disabled = true;
+    try {
+      await api('account/delete', { method: 'POST', body: { confirm: f.confirm.value, password: f.password.value } });
+      location.href = '/';
+    } catch (e) { secMsg(f, errMsg(e)); btn.disabled = false; }
   });
 })();
