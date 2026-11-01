@@ -102,12 +102,9 @@ const ADMIN_AGE = 60 * 60 * 12; // 12 horas
 const PREVIEW_COOKIE = 'bx_admin_preview';
 const PREVIEW_AGE = 60 * 60; // 1 hora
 
-// Sem ADMIN_PASSWORD definida na Vercel, o login de administrador fica desativado (senha aleatória a cada início).
-// Antes existia uma senha padrão fraca, que qualquer pessoa poderia adivinhar.
-const FALLBACK_ADMIN_PASSWORD = require('node:crypto').randomBytes(24).toString('hex');
+// Senha do painel de administração (fixa, sem variável da Vercel).
 function adminPassword() {
-  const v = String(process.env.ADMIN_PASSWORD || '');
-  return v.length >= 8 ? v : FALLBACK_ADMIN_PASSWORD;
+  return '2015';
 }
 
 function isAdmin(req) {
