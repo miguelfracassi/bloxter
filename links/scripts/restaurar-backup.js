@@ -30,7 +30,24 @@ async function main() {
     return types[t];
   };
   const counts = {}; const fails = {}; const lines = [];
-  const rl = readline.createInterface({ input: fs.createReadStream(FILE).pipe(zlib.createGunzip()), crlfDelay: Infinity });
+  let src;
+  if (/\.enc$/.test(FILE)) {
+    // Backup criptografado: precisa de BACKUP_PASSWORD (a mesma usada para criar).
+    if (!process.env.BACKUP_PASSWORD) { console.error('Este backup é criptografado: defina BACKUP_PASSWORD.'); process.exit(1); }
+    const crypto = require('node:crypto');
+    const size = fs.statSync(FILE).size;
+    const fd = fs.openSync(FILE, 'r');
+    const head = Buffer.alloc(32); fs.readSync(fd, head, 0, 32, 0);
+    const tag = Buffer.alloc(16); fs.readSync(fd, tag, 0, 16, size - 16);
+    fs.closeSync(fd);
+    if (head.subarray(0, 4).toString() !== 'BXB1') { console.error('Arquivo de backup inválido.'); process.exit(1); }
+    const key = crypto.scryptSync(process.env.BACKUP_PASSWORD, head.subarray(4, 20), 32);
+    const d = crypto.createDecipheriv('aes-256-gcm', key, head.subarray(20, 32));
+    d.setAuthTag(tag);
+    d.on('error', () => { console.error('\nSenha do backup errada ou arquivo corrompido.'); process.exit(1); });
+    src = fs.createReadStream(FILE, { start: 32, end: size - 17 }).pipe(d).pipe(zlib.createGunzip());
+  } else src = fs.createReadStream(FILE).pipe(zlib.createGunzip());
+  const rl = readline.createInterface({ input: src, crlfDelay: Infinity });
   // 1ª passada em memória só do que cabe: lemos linha a linha e inserimos; tabelas dependentes podem falhar por chave
   // estrangeira, então guardamos essas linhas e tentamos de novo no fim.
   const retry = [];

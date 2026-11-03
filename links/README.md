@@ -140,3 +140,15 @@ Restaurar em um banco novo/vazio:
     DATABASE_URL="postgresql://...banco novo..." node scripts/restaurar-backup.js backups/ARQUIVO.jsonl.gz
 
 Depois troque a `DATABASE_URL` na Vercel e faça um novo deploy.
+
+### Backup automático (todo dia)
+
+O GitHub faz sozinho, todo dia às 03:00, um backup **criptografado** (aba **Actions** do repositório → "Backup diário do banco" → o backup fica em *Artifacts*, guardado por 90 dias).
+Configure uma vez em Settings → Secrets and variables → Actions → New repository secret:
+
+- `DATABASE_URL`: a URL do banco (use a do **pooler** do Supabase, que funciona no GitHub).
+- `BACKUP_PASSWORD`: uma senha forte (8+ caracteres) que só você sabe. **Sem ela não dá para abrir o backup — anote em lugar seguro.**
+
+Para restaurar um backup baixado do GitHub (arquivo `.enc`, dentro do .zip do artifact):
+
+    BACKUP_PASSWORD="sua senha" DATABASE_URL="banco novo" node scripts/restaurar-backup.js ARQUIVO.jsonl.gz.enc

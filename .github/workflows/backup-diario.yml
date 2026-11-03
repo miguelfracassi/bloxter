@@ -1,0 +1,43 @@
+name: Backup diário do banco
+
+on:
+  schedule:
+    - cron: '0 6 * * *'   # todo dia 03:00 (horário de Brasília)
+  workflow_dispatch: {}    # também dá para rodar na mão: aba Actions > Backup diário > Run workflow
+
+permissions:
+  contents: read
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Verificar segredos
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          BACKUP_PASSWORD: ${{ secrets.BACKUP_PASSWORD }}
+        run: |
+          [ -n "$DATABASE_URL" ] || { echo "Falta o segredo DATABASE_URL"; exit 1; }
+          [ ${#BACKUP_PASSWORD} -ge 8 ] || { echo "Falta o segredo BACKUP_PASSWORD (mínimo 8 caracteres)"; exit 1; }
+      - name: Instalar dependência
+        working-directory: links
+        run: npm install pg --no-save --no-audit --no-fund
+      - name: Fazer backup (criptografado)
+        working-directory: links
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          BACKUP_PASSWORD: ${{ secrets.BACKUP_PASSWORD }}
+          BACKUP_DIR: ${{ github.workspace }}/backups
+        run: node scripts/backup-banco.js
+      - name: Guardar backup (90 dias)
+        uses: actions/upload-artifact@v4
+        with:
+          name: backup-bloxter-${{ github.run_id }}
+          path: backups/*.enc
+          retention-days: 90
+          if-no-files-found: error

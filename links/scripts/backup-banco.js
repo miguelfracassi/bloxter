@@ -20,7 +20,7 @@ async function main() {
   fs.mkdirSync(dir, { recursive: true });
   const d = new Date();
   const p2 = (n) => String(n).padStart(2, '0');
-  const file = path.join(dir, `bloxter-${d.getFullYear()}-${p2(d.getMonth() + 1)}-${p2(d.getDate())}-${p2(d.getHours())}${p2(d.getMinutes())}.jsonl.gz`);
+  let file = path.join(dir, `bloxter-${d.getFullYear()}-${p2(d.getMonth() + 1)}-${p2(d.getDate())}-${p2(d.getHours())}${p2(d.getMinutes())}.jsonl.gz`);
   const gz = zlib.createGzip({ level: 6 });
   const out = fs.createWriteStream(file);
   gz.pipe(out);
@@ -46,6 +46,20 @@ async function main() {
   await write({ end: true, rows: totalRows });
   await new Promise((ok) => { out.on('finish', ok); gz.end(); });
   await pool.end();
+  let finalFile = file;
+  if (process.env.BACKUP_PASSWORD) {
+    // Criptografa (AES-256-GCM) e apaga a versão sem senha. Formato: "BXB1" + salt(16) + iv(12) + dados + tag(16).
+    const crypto = require('node:crypto');
+    const salt = crypto.randomBytes(16); const iv = crypto.randomBytes(12);
+    const key = crypto.scryptSync(process.env.BACKUP_PASSWORD, salt, 32);
+    const c = crypto.createCipheriv('aes-256-gcm', key, iv);
+    finalFile = file + '.enc';
+    const w = fs.createWriteStream(finalFile);
+    w.write(Buffer.concat([Buffer.from('BXB1'), salt, iv]));
+    await new Promise((ok, bad) => { const r = fs.createReadStream(file); r.on('error', bad); w.on('error', bad); r.pipe(c).on('data', (b) => w.write(b)).on('end', () => { w.end(Buffer.concat([c.getAuthTag()]), ok); }); });
+    fs.unlinkSync(file);
+  }
+  file = finalFile;
   console.log(`\nBackup pronto (${totalRows} linhas): ${file}\nTamanho: ${(fs.statSync(file).size / 1048576).toFixed(1)} MB`);
 }
 main().catch((e) => { console.error('\nFalhou:', e.message); process.exit(1); });
