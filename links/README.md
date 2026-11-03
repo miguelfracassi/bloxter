@@ -126,3 +126,17 @@ Android/Chrome atualizam o ícone dos apps já instalados sozinhos em poucos dia
 - Contas com BannerUP veem **Configurações → Perfil → Banner do perfil**: escolhem uma imagem (recortada em 3:1, 1200×400) e salvam. Também podem remover.
 - O banner aparece no topo do perfil (`/account/usuario`). Se a administração desligar o BannerUP, o banner some (a imagem fica guardada e volta se for religado).
 - API: `PATCH /api/me` aceita `banner` (data URL; 403 `bannerup_required` sem a função) ou `null` para remover; `GET /api/banner/:id` serve a imagem; `PATCH /api/admin/users/:u` aceita `bannerup: boolean`. Colunas criadas sozinhas: `users.bannerup`, `banner`, `banner_v`.
+
+## Backup e restauração
+
+Fazer backup (contas, posts, mensagens, imagens, configurações — tudo):
+
+    DATABASE_URL="postgresql://...seu banco..." node scripts/backup-banco.js
+
+Gera `backups/bloxter-AAAA-MM-DD-HHMM.jsonl.gz`. Guarde uma cópia fora do computador (Drive, pen drive). A pasta `backups/` nunca vai para o GitHub (tem dados privados).
+
+Restaurar em um banco novo/vazio:
+
+    DATABASE_URL="postgresql://...banco novo..." node scripts/restaurar-backup.js backups/ARQUIVO.jsonl.gz
+
+Depois troque a `DATABASE_URL` na Vercel e faça um novo deploy.
