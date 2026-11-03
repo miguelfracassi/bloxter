@@ -91,18 +91,21 @@
 
   function verificationHTML(p) {
     if (!p || !p.enabled || p.verified) return '';
-    const step = (done, text, action = '') => `<div class="verification-step ${done ? 'done' : ''}"><span class="step-mark" aria-hidden="true">${done ? '✓' : '•'}</span><span class="step-copy">${text}</span>${action ? `<span class="step-action">${action}</span>` : ''}</div>`;
-    const installAction = p.app_installed ? '' : '<button class="btn ghost sm" type="button" data-verification-install>Instalar</button><button class="btn ghost sm" type="button" data-verification-install-confirm>Já instalei</button>';
-    const pushAction = p.push_enabled ? '' : '<button class="btn ghost sm" type="button" data-verification-push>Ativar</button>';
+    const step = (done, text) => `<div class="verification-step ${done ? 'done' : ''}"><span class="step-mark" aria-hidden="true">${done ? '✓' : '•'}</span><span class="step-copy">${text}</span></div>`;
+    const days = Math.min(p.required_days || 2, p.active_days || 0);
+    const req = p.required_days || 2;
+    const pct = Math.round((days / req) * 100);
+    const dayDone = p.today_posted && p.today_interacted;
     return `<section class="verification-progress" aria-labelledby="verification-title">
       <h2 id="verification-title">Conquiste o selo de verificado</h2>
-      <p>Complete os requisitos abaixo. Seu selo será adicionado automaticamente, com um aviso em Notificações e no aparelho.</p>
+      <p>Publique e interaja (curta, comente ou reposte) em ${req} dias diferentes. O selo chega automaticamente, com um aviso aqui.</p>
+      <div class="vp-bar" role="progressbar" aria-valuemin="0" aria-valuemax="${req}" aria-valuenow="${days}"><i style="width:${pct}%"></i></div>
+      <p class="vp-count"><strong>${days}/${req}</strong> dias concluídos</p>
       <div class="verification-steps">
-        ${step(p.active_days >= 2, `Publique e interaja em dois dias diferentes (${p.active_days}/2)`)}
-        ${step(p.app_installed, 'Instale o Bloxter como aplicativo no navegador', installAction)}
-        ${step(p.push_enabled, 'Ative as notificações no aparelho', pushAction)}
+        ${step(p.today_posted, 'Publicar hoje')}
+        ${step(p.today_interacted, 'Interagir hoje')}
       </div>
-      <p class="verification-note" id="verification-note" aria-live="polite"></p>
+      <p class="verification-note" id="verification-note" aria-live="polite">${dayDone && days < req ? 'Hoje já conta! Volte amanhã e repita.' : ''}</p>
     </section>`;
   }
 

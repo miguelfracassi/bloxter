@@ -1215,6 +1215,42 @@
   /* =====================================================
      Shells
   ===================================================== */
+  // Rodapé do site: colunas de links + marca. Usado nas páginas públicas e logadas.
+  function siteFooterHTML() {
+    const year = new Date().getFullYear();
+    const ring = `<svg class="sf-ring" viewBox="0 0 400 420" aria-hidden="true" focusable="false">
+      <defs><path id="sf-ring-path" d="M 210 30 C 20 10, -60 200, 60 340 C 130 420, 260 410, 330 330 C 400 230, 330 80, 210 30"/></defs>
+      <use href="#sf-ring-path" fill="none" stroke="currentColor" stroke-width="64" stroke-linecap="round"/>
+      <text font-size="34" font-weight="700" fill="var(--bg)" letter-spacing="1"><textPath href="#sf-ring-path" startOffset="2%">bloxter  bloxter  bloxter  bloxter  bloxter</textPath></text>
+    </svg>`;
+    return `<footer class="site-footer">
+      <div class="sf-art" aria-hidden="true">${ring}</div>
+      <nav class="sf-cols" aria-label="Rodapé">
+        <div class="sf-col"><h4>Termos</h4>
+          <a href="/terms">Serviço</a><a href="/privacy">Privacidade</a><a href="/parental">Parentais</a><a href="/safety">Segurança</a><a href="/conduct">Conduta</a>
+          <button type="button" class="sf-more" data-sf-more aria-expanded="false">Ver Mais <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg></button>
+          <div class="sf-extra" hidden><a href="/support-terms">Atendimento</a><a href="/rules">Regras da Comunidade</a><a href="/election-rules">Diretrizes Eleitorais</a><a href="/marcas">Marcas</a></div>
+        </div>
+        <div class="sf-col"><h4>Suporte</h4>
+          <a href="/support">Ajuda</a><a href="/app">Aplicativo</a><a href="/settings#accessibility">Acessibilidade</a><a href="/invite">Convidar e Ganhar</a>
+        </div>
+        <div class="sf-col"><h4>Bloxter</h4>
+          <a href="/developers.html">Developers</a><a href="/blog">Blog</a><a href="/trending">Tendências</a>${state.features && state.features.discord ? '<a href="/discord">Discord</a>' : ''}
+        </div>
+      </nav>
+      <div class="sf-brand"><span class="sf-logo"><i class="sf-sym" role="img" aria-label=""></i><b>bloxter</b></span><small>© ${year} <strong>Bloxter</strong> and <strong>DKS</strong></small></div>
+    </footer>`;
+  }
+  document.addEventListener('click', (e) => {
+    const b = e.target.closest('[data-sf-more]');
+    if (!b) return;
+    const extra = b.parentElement.querySelector('.sf-extra');
+    const open = extra.hidden;
+    extra.hidden = !open;
+    b.setAttribute('aria-expanded', String(open));
+    b.classList.toggle('open', open);
+  });
+
   function publicShell() {
     state.shell = 'public';
     root.innerHTML = `
@@ -1227,7 +1263,7 @@
           </div>
         </header>
         <main class="pub-main" id="view"></main>
-        <footer class="pub-foot" style="flex-direction:column;align-items:center"><nav class="foot-legal" aria-label="Termos e regras"><a href="/terms">Termos de Serviço</a><a href="/privacy">Privacidade</a><a href="/parental">Termos Parentais</a><a href="/safety">Segurança</a><a href="/support-terms">Atendimento</a><a href="/conduct">Conduta</a><a href="/rules">Regras da Comunidade</a><a href="/election-rules">Diretrizes Eleitorais</a><a href="/marcas">Marcas</a></nav><span class="powered powered-foot"><span data-t="poweredBy">${t('poweredBy')}</span><i class="powered-logo" role="img" aria-label="Logotipo"></i></span><span>${t('footer', { year: new Date().getFullYear() })} · From Ticord</span></footer>
+        ${siteFooterHTML()}
       </div>`;
     return $('#view');
   }
@@ -1280,7 +1316,7 @@
           </div>
         </aside>
       </div>
-      <footer class="app-footer"><span>${t('footer', { year: new Date().getFullYear() })}</span><a href="/developers.html">Bloxter for Developers</a><a href="/support">Ajuda</a><a href="/app">Aplicativo</a>${state.features.discord ? '<a href="/discord">Discord</a>' : ''}<a href="/settings#accessibility">Acessibilidade</a><a href="/terms">Termos de Serviço</a><a href="/privacy">Privacidade</a><a href="/parental">Termos Parentais</a><a href="/safety">Segurança</a><a href="/support-terms">Atendimento</a><a href="/conduct">Conduta</a><a href="/rules">Regras da Comunidade</a><a href="/election-rules">Diretrizes Eleitorais</a><a href="/marcas">Marcas</a><span>From Ticord</span></footer>
+      ${siteFooterHTML()}
       <a class="mobile-compose" href="/home" data-act="postnow" aria-label="Criar publicação"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L8 18l-4 1 1-4Z"/></svg></a>
       <nav class="tabbar">
         <a href="/home" data-nav="home" aria-label="Home">${ICON.home}</a>
