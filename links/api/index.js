@@ -1042,24 +1042,27 @@ module.exports = async (req, res) => {
     };
 
     const verificationProgress = async (uid) => {
-      const [[days], [today], [account]] = await Promise.all([
+      const [[days], [today], [install], [push], [account]] = await Promise.all([
         sql`SELECT count(*)::int AS active_days FROM user_verification_days WHERE user_id = ${uid} AND posted AND interacted`,
         sql`SELECT posted, interacted FROM user_verification_days WHERE user_id = ${uid} AND activity_day = CURRENT_DATE`,
+        sql`SELECT app_installed_at FROM user_verification_state WHERE user_id = ${uid}`,
+        sql`SELECT EXISTS (SELECT 1 FROM push_subscriptions WHERE user_id = ${uid}) AS enabled`,
         sql`SELECT verified FROM users WHERE id = ${uid}`,
       ]);
       return {
         enabled: await verifiedBannerEnabled(), active_days: Math.min(2, Number(days && days.active_days) || 0),
         required_days: 2, today_posted: !!(today && today.posted), today_interacted: !!(today && today.interacted),
+        app_installed: !!(install && install.app_installed_at), push_enabled: !!(push && push.enabled),
         verified: !!(account && account.verified),
       };
     };
-    // Selo automático: publicar e interagir em 2 dias diferentes.
+    // Selo automático: publicar e interagir em 2 dias diferentes + app instalado + notificações ativadas.
     const maybeCompleteVerification = async (uid) => {
       const progress = await verificationProgress(uid);
-      if (!progress.enabled || progress.verified || progress.active_days < 2) return progress;
+      if (!progress.enabled || progress.verified || progress.active_days < 2 || !progress.app_installed || !progress.push_enabled) return progress;
       const [awarded] = await sql`UPDATE users SET verified = true WHERE id = ${uid} AND verified = false RETURNING id`;
       if (!awarded) return verificationProgress(uid);
-      const message = 'Parabéns! Você publicou e interagiu em 2 dias diferentes e sua conta recebeu o selo de verificado.';
+      const message = 'Parabéns! Você publicou e interagiu em 2 dias diferentes, instalou o app e ativou as notificações. Sua conta recebeu o selo de verificado!';
       await sql`INSERT INTO notifications (user_id, actor_id, type, body) VALUES (${uid}, ${uid}, 'verification', ${message})`;
       try {
         const subs = await sql`SELECT id, endpoint, p256dh, auth FROM push_subscriptions WHERE user_id = ${uid}`;
