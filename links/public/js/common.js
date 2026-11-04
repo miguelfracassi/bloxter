@@ -1255,6 +1255,7 @@
 
   // Abertura animada do logotipo (só ao entrar na conta ou depois de criar uma conta): o "B" se desenha rápido e o site abre.
   function playIntro() {
+    try { sessionStorage.setItem('bx_intro', '1'); } catch { /* ignore */ }
     return new Promise((done) => {
       try {
         const calm = !!(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches);
@@ -2860,9 +2861,13 @@
     const adminPage = /^\/administracao(?:\/|$)/.test(location.pathname) || location.pathname === '/verificacao.html';
     let adminPreview = false;
     let siteAccess = null;
+    // Abertura do logotipo: uma vez por visita ao site, para quem já tem conta aberta (login e cadastro tocam a deles).
+    try {
+      if (!adminPage && location.pathname !== '/acess' && localStorage.getItem('bx_in') === '1' && !sessionStorage.getItem('bx_intro')) playIntro();
+    } catch { /* ignore */ }
     // Pede /me ao mesmo tempo que /site/status (antes era um depois do outro).
     const mePromise = api('me');
-    mePromise.catch(() => {});
+    mePromise.then((r) => { try { if (r && r.user) { const first = localStorage.getItem('bx_in') !== '1' && !sessionStorage.getItem('bx_intro'); localStorage.setItem('bx_in', '1'); if (first && !adminPage && location.pathname !== '/acess') playIntro(); } else localStorage.removeItem('bx_in'); } catch { /* ignore */ } }).catch(() => {});
     try {
       const access = await api('site/status');
       siteAccess = access;
