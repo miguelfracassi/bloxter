@@ -1779,3 +1779,35 @@ img { display: block; max-width: 100%; }
 .vp-bar { height:8px; border-radius:99px; background:var(--hover); overflow:hidden; }
 .vp-bar i { display:block; height:100%; border-radius:inherit; background:var(--fg); transition:width .4s ease; }
 .vp-count { font-size:13px; color:var(--fg2); }
+
+/* ===== Enquetes e perguntas ===== */
+.composer-mode-btn.on { background: var(--fg); color: var(--bg); border-color: var(--fg); }
+.composer-poll { display: grid; gap: 8px; margin: 8px 0 4px; padding: 10px; border: 1px solid var(--line); border-radius: 14px; }
+.poll-opts { display: grid; gap: 8px; }
+.poll-tools { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.poll-dur { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; color: var(--fg2); }
+.poll-dur select { background: var(--bg); color: var(--fg); border: 1px solid var(--line); border-radius: 10px; padding: 6px 8px; font: inherit; }
+.composer-qnote { margin: 8px 0 4px; padding: 10px 12px; border: 1px dashed var(--line); border-radius: 12px; font-size: 13px; color: var(--fg2); }
+.poll { display: grid; gap: 8px; margin: 10px 0 4px; }
+.poll-opt { text-align: left; padding: 10px 14px; border: 1px solid var(--line); border-radius: 12px; background: transparent; color: var(--fg); font: inherit; font-size: 14px; cursor: pointer; transition: background .15s, border-color .15s; }
+.poll-opt:hover:not(:disabled) { background: var(--hover); border-color: var(--fg2); }
+.poll-opt:disabled { opacity: .6; cursor: default; }
+.poll-res { position: relative; display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 14px; border: 1px solid var(--line); border-radius: 12px; overflow: hidden; font-size: 14px; }
+.poll-res i { position: absolute; inset: 0 auto 0 0; background: var(--hover); border-right: 1px solid var(--line); transition: width .5s ease; }
+.poll-res.mine { border-color: var(--fg2); }
+.poll-res.mine i { background: color-mix(in srgb, var(--fg) 16%, transparent); }
+.poll-res > * { position: relative; }
+.poll-res b { font-weight: 700; }
+.poll-meta { color: var(--fg2); font-size: 12px; }
+.qa { margin: 10px 0 4px; }
+.qa-panel { margin-top: 10px; display: grid; gap: 10px; }
+.qa-list { display: grid; gap: 10px; max-height: 320px; overflow: auto; }
+.qa-item { display: flex; align-items: flex-start; gap: 10px; padding: 10px; border: 1px solid var(--line); border-radius: 12px; font-size: 14px; }
+.qa-item p { margin: 2px 0 0; overflow-wrap: anywhere; }
+.qa-item .t { color: var(--fg2); font-size: 12px; }
+.qa-item > div { flex: 1; min-width: 0; }
+.qa-del { border: 0; background: transparent; color: var(--fg2); cursor: pointer; padding: 2px 6px; }
+.qa-del:hover { color: var(--fg); }
+.qa-empty { color: var(--fg2); font-size: 13px; }
+.qa-form { display: flex; gap: 8px; }
+.qa-form input { flex: 1; min-width: 0; padding: 9px 12px; border-radius: 999px; border: 1px solid var(--line); background: transparent; color: var(--fg); font: inherit; }

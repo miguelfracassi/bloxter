@@ -386,6 +386,32 @@ async function createAll() {
   await s`ALTER TABLE posts ADD COLUMN IF NOT EXISTS music TEXT NOT NULL DEFAULT ''`;
   await s`ALTER TABLE posts ADD COLUMN IF NOT EXISTS music_title TEXT NOT NULL DEFAULT ''`;
   await s`ALTER TABLE posts ADD COLUMN IF NOT EXISTS music_start INTEGER NOT NULL DEFAULT 0`;
+  // Enquetes e perguntas nos posts.
+  await s`ALTER TABLE posts ADD COLUMN IF NOT EXISTS kind TEXT NOT NULL DEFAULT 'post'`;
+  await s`ALTER TABLE posts ADD COLUMN IF NOT EXISTS poll_ends_at TIMESTAMPTZ`;
+  await s`CREATE TABLE IF NOT EXISTS poll_options (
+    id SERIAL PRIMARY KEY,
+    post_id INTEGER NOT NULL REFERENCES posts(id) ON DELETE CASCADE,
+    pos SMALLINT NOT NULL DEFAULT 0,
+    text TEXT NOT NULL
+  )`;
+  await s`CREATE INDEX IF NOT EXISTS poll_options_post_idx ON poll_options (post_id)`;
+  await s`CREATE TABLE IF NOT EXISTS poll_votes (
+    post_id INTEGER NOT NULL REFERENCES posts(id) ON DELETE CASCADE,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    option_id INTEGER NOT NULL REFERENCES poll_options(id) ON DELETE CASCADE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    PRIMARY KEY (post_id, user_id)
+  )`;
+  await s`CREATE INDEX IF NOT EXISTS poll_votes_option_idx ON poll_votes (option_id)`;
+  await s`CREATE TABLE IF NOT EXISTS post_answers (
+    id SERIAL PRIMARY KEY,
+    post_id INTEGER NOT NULL REFERENCES posts(id) ON DELETE CASCADE,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    body TEXT NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    UNIQUE (post_id, user_id)
+  )`;
   await s`ALTER TABLE users ADD COLUMN IF NOT EXISTS notif_prefs TEXT NOT NULL DEFAULT ''`;
   await s`ALTER TABLE users ADD COLUMN IF NOT EXISTS notif_tour_seen BOOLEAN NOT NULL DEFAULT false`;
   // Banimento de contas (feito em /administracao): banned_at preenchido = conta banida.

@@ -42,7 +42,7 @@
     feedTab: 'all',
     unread: 0,
     // Recursos que a administração libera em /administracao. Começam bloqueados até o site/status responder.
-    features: { comments: false, likes: false, hashtags: false, discord: false, liquid_glass: false },
+    features: { comments: false, likes: false, hashtags: false, discord: false, liquid_glass: false, polls: false, questions: false },
   };
 
   /* =====================================================
@@ -1734,6 +1734,37 @@
     applyMusicAudio(); syncMusicUI();
   });
 
+  // Enquete e pergunta dentro do post.
+  function pollLeft(iso) {
+    const ms = new Date(iso) - Date.now();
+    if (!(ms > 0)) return 'Encerrada';
+    const m = Math.ceil(ms / 60000);
+    if (m < 60) return `Termina em ${m} min`;
+    const h = Math.ceil(m / 60);
+    return h < 48 ? `Termina em ${h} h` : `Termina em ${Math.ceil(h / 24)} dias`;
+  }
+  function pollHTML(p) {
+    const o = p.poll;
+    if (!o) return '';
+    const show = o.my_vote != null || o.closed || p.mine;
+    const rows = o.options.map((op) => {
+      if (!show) return `<button type="button" class="poll-opt" data-act="vote" data-id="${p.id}" data-opt="${op.id}">${esc(op.text)}</button>`;
+      const pct = o.total ? Math.round((op.votes / o.total) * 100) : 0;
+      return `<div class="poll-res ${o.my_vote === op.id ? 'mine' : ''}"><i style="width:${pct}%"></i><span class="poll-txt">${esc(op.text)}${o.my_vote === op.id ? ' ✓' : ''}</span><b>${pct}%</b></div>`;
+    }).join('');
+    return `<div class="poll" data-poll="${p.id}" role="group" aria-label="Enquete">${rows}<small class="poll-meta">${o.total} ${o.total === 1 ? 'voto' : 'votos'}${o.ends_at ? ` · ${pollLeft(o.ends_at)}` : ''}</small></div>`;
+  }
+  function questionHTML(p) {
+    if (p.kind !== 'question') return '';
+    return `<div class="qa" data-qa="${p.id}"><button type="button" class="btn ghost sm" data-act="answers" data-id="${p.id}" aria-expanded="false">${p.mine ? 'Ver respostas' : 'Responder'}${p.answers ? ` (${p.answers})` : ''}</button><div class="qa-panel" hidden></div></div>`;
+  }
+  function answersListHTML(data, postId) {
+    const list = data.answers.length
+      ? data.answers.map((a) => `<div class="qa-item" data-answer="${a.id}"><a href="${accountPath(a.user.username)}">${avatar(a.user)}</a><div><a href="${accountPath(a.user.username)}"><b>${esc(a.user.name)}</b></a> <span class="t">· ${ago(a.created_at)}</span><p>${esc(a.body)}</p></div>${a.mine || data.owner ? `<button type="button" class="qa-del" data-act="answerdel" data-id="${postId}" data-answer="${a.id}" aria-label="Apagar resposta">✕</button>` : ''}</div>`).join('')
+      : `<p class="qa-empty">${data.owner ? 'Ninguém respondeu ainda.' : 'Seja a primeira pessoa a responder.'}</p>`;
+    return list;
+  }
+
   function postHTML(p) {
     postCache.set(p.id, p);
     return `<article class="post ${p.sponsored ? 'post-sponsored' : ''} ${p.pinned ? 'post-pinned' : ''}" data-post="${p.id}">
@@ -1752,6 +1783,7 @@
         ${p.collaborators && p.collaborators.length ? `<div class="collab-line">${ICON.people}<span>com ${p.collaborators.map((c) => `<a href="${accountPath(c.username)}"><b>${esc(c.name)}</b></a>`).join(', ')}</span></div>` : ''}
         ${p.body ? `<div class="text">${fmt(p.body, { pageup: !!(p.user && p.user.pageup) })}</div>` : ''}
         ${imagesHTML(p.images)}${videosHTML(p.videos)}${musicHTML(p.music)}
+        ${pollHTML(p)}${questionHTML(p)}
         <div class="acts">
           ${state.features.comments ? `<button class="act" data-act="comment" data-id="${p.id}" aria-label="${esc(t('comment.aria'))}">${ICON.comment}<span>${p.comments || ''}</span></button>` : ''}
           ${p.mine
@@ -2400,6 +2432,52 @@
       } catch (e) { toast(errMsg(e)); btns.forEach((b) => { b.disabled = false; }); }
     },
     postnow() { setTimeout(() => $('.composer textarea')?.focus(), 80); },
+    async vote(el) {
+      const id = el.dataset.id;
+      el.closest('.poll').querySelectorAll('button').forEach((b) => { b.disabled = true; });
+      try {
+        const r = await api(`posts/${id}/vote`, { method: 'POST', body: { option_id: Number(el.dataset.opt) } });
+        const post = postCache.get(Number(id)) || { id: Number(id), mine: false };
+        post.poll = r.poll; postCache.set(Number(id), post);
+        el.closest('.poll').outerHTML = pollHTML(post);
+      } catch (e) {
+        toast(errMsg(e));
+        const box = document.querySelector(`.poll[data-poll="${id}"]`);
+        if (box) box.querySelectorAll('button').forEach((b) => { b.disabled = false; });
+      }
+    },
+    async answers(el) {
+      const box = el.closest('.qa'); const panel = $('.qa-panel', box); const id = el.dataset.id;
+      const open = panel.hidden;
+      panel.hidden = !open; el.setAttribute('aria-expanded', String(open));
+      if (!open) return;
+      panel.innerHTML = `<div class="loading">${t('loading')}</div>`;
+      try {
+        const data = await api(`posts/${id}/answers`);
+        const post = postCache.get(Number(id));
+        const mineP = post ? post.mine : data.owner;
+        const done = data.answers.some((a) => a.mine);
+        panel.innerHTML = `<div class="qa-list">${answersListHTML(data, id)}</div>${!mineP && state.me && !done ? `<div class="qa-form"><input type="text" maxlength="300" placeholder="Escreva sua resposta" aria-label="Sua resposta" data-answer-input="${id}" /><button type="button" class="btn sm" data-act="answersend" data-id="${id}">Enviar</button></div>` : ''}`;
+      } catch (e) { panel.innerHTML = ''; panel.hidden = true; el.setAttribute('aria-expanded', 'false'); toast(errMsg(e)); }
+    },
+    async answersend(el) {
+      const id = el.dataset.id; const box = el.closest('.qa'); const input = $(`[data-answer-input="${id}"]`, box);
+      const body = (input.value || '').trim();
+      if (!body) return;
+      el.disabled = true;
+      try {
+        await api(`posts/${id}/answers`, { method: 'POST', body: { body } });
+        const toggle = $('[data-act="answers"]', box);
+        const panel = $('.qa-panel', box); panel.hidden = true; toggle.click();
+      } catch (e) { toast(errMsg(e)); el.disabled = false; }
+    },
+    async answerdel(el) {
+      try {
+        await api(`posts/${el.dataset.id}/answers/${el.dataset.answer}`, { method: 'DELETE' });
+        const item = el.closest('.qa-item'); const list = item.parentElement; item.remove();
+        if (!list.querySelector('.qa-item')) list.innerHTML = '<p class="qa-empty">Nenhuma resposta.</p>';
+      } catch (e) { toast(errMsg(e)); }
+    },
     async like(el) {
       try {
         const r = await api(`posts/${el.dataset.id}/like`, { method: 'POST' });
@@ -2571,6 +2649,7 @@
   });
 
   document.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && e.target.matches && e.target.matches('[data-answer-input]')) { e.preventDefault(); const b = e.target.parentElement.querySelector('[data-act="answersend"]'); if (b) b.click(); return; }
     if ((e.ctrlKey || e.metaKey) && e.key === 'Enter' && e.target.matches && e.target.matches('.composer textarea')) {
       e.target.closest('form').requestSubmit();
     }

@@ -799,6 +799,8 @@
       likes: { name: 'Curtidas', desc: 'Botão de curtir nos posts e nos comentários, com a contagem.' },
       hashtags: { name: 'Hashtags (#)', desc: 'As #hashtags viram link, a busca por # e a página Top #.' },
       discord: { name: 'Discord', desc: 'Página /discord, link no rodapé e a opção *discord do PageUP.' },
+      polls: { name: 'Enquetes', desc: 'Libera o botão de enquete ao publicar: 2 a 4 opções, com duração e resultado em porcentagem. Cada pessoa vota uma vez.' },
+      questions: { name: 'Perguntas', desc: 'Libera o post de pergunta: as pessoas respondem e o autor vê todas as respostas no próprio post.' },
       liquid_glass: { name: 'Tema Liquid Glass', desc: 'Libera a aparência de vidro translúcido em Acessibilidade. Cada pessoa pode voltar ao visual normal a qualquer momento.' },
     };
     const when = (d) => new Date(d).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });

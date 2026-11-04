@@ -399,7 +399,7 @@ module.exports = async (req, res) => {
 
     // Recursos que a administração libera para todos (inclui a aparência Liquid Glass).
     // Ficam na tabela site_settings (feature_<nome> = 'true'/'false') e começam bloqueados.
-    const FEATURES = ['comments', 'likes', 'hashtags', 'discord', 'liquid_glass'];
+    const FEATURES = ['comments', 'likes', 'hashtags', 'discord', 'liquid_glass', 'polls', 'questions'];
     const featureRows = async () => {
       const rows = await sql`SELECT setting_key, setting_value FROM site_settings WHERE setting_key LIKE 'feature%'`;
       return Object.fromEntries(rows.map((r) => [r.setting_key, r.setting_value]));
@@ -831,9 +831,27 @@ module.exports = async (req, res) => {
         if (!target.has(im.post_id)) target.set(im.post_id, []);
         target.get(im.post_id).push(postMediaPath(im.id));
       }
+      // Enquetes e perguntas: só consulta o resto quando há algum post desse tipo na lista.
+      const kindRows = await sql`SELECT id, kind, poll_ends_at FROM posts WHERE id = ANY(${ids}::int[]) AND kind <> 'post'`;
+      const kindMap = new Map(kindRows.map((x) => [x.id, x]));
+      const pollIds = kindRows.filter((x) => x.kind === 'poll').map((x) => x.id);
+      const qIds = kindRows.filter((x) => x.kind === 'question').map((x) => x.id);
+      const [optRows, myVotes, ansRows] = await Promise.all([
+        pollIds.length ? sql`SELECT o.id, o.post_id, o.text, (SELECT count(*) FROM poll_votes v WHERE v.option_id = o.id)::int AS votes FROM poll_options o WHERE o.post_id = ANY(${pollIds}::int[]) ORDER BY o.post_id, o.pos, o.id` : [],
+        pollIds.length && me ? sql`SELECT post_id, option_id FROM poll_votes WHERE user_id = ${me} AND post_id = ANY(${pollIds}::int[])` : [],
+        qIds.length ? sql`SELECT post_id, count(*)::int AS n FROM post_answers WHERE post_id = ANY(${qIds}::int[]) GROUP BY post_id` : [],
+      ]);
+      const pollMap = new Map();
+      for (const pid of pollIds) {
+        const k = kindMap.get(pid);
+        const options = optRows.filter((o) => o.post_id === pid).map((o) => ({ id: o.id, text: o.text, votes: o.votes }));
+        const mv = myVotes.find((m) => m.post_id === pid);
+        pollMap.set(pid, { options, total: options.reduce((a, o) => a + o.votes, 0), my_vote: mv ? mv.option_id : null, ends_at: k.poll_ends_at, closed: !!(k.poll_ends_at && new Date(k.poll_ends_at) <= new Date()) });
+      }
+      const ansMap = new Map(ansRows.map((x) => [x.post_id, x.n]));
       const musmap = new Map(mus.map((x) => [x.id, { id: x.music, title: x.music_title, start: x.music_start || 0 }]));
       const fset = new Set(fol.map((x) => x.followee_id));
-      return rows.map((r) => ({ ...r, comments: cmap.get(r.id) || 0, reposts: rmap.get(r.id) || 0, reposted: mset.has(r.id), images: imap.get(r.id) || [], videos: vmap.get(r.id) || [], music: musmap.get(r.id) || null, following: fset.has(r.uid), collabs: collabMap.get(r.id) || [] }));
+      return rows.map((r) => ({ ...r, comments: cmap.get(r.id) || 0, reposts: rmap.get(r.id) || 0, reposted: mset.has(r.id), images: imap.get(r.id) || [], videos: vmap.get(r.id) || [], music: musmap.get(r.id) || null, following: fset.has(r.uid), collabs: collabMap.get(r.id) || [], kind: kindMap.has(r.id) ? kindMap.get(r.id).kind : 'post', poll: pollMap.get(r.id) || null, answers: ansMap.get(r.id) || 0 }));
     };
 
     const mapPost = (r) => ({
@@ -851,6 +869,9 @@ module.exports = async (req, res) => {
       videos: r.videos || [],
       music: r.music || null,
       collaborators: r.collabs || [],
+      kind: r.kind || 'post',
+      poll: r.poll || null,
+      answers: r.answers || 0,
       mine: me != null && r.uid === me,
       user: {
         id: r.uid,
@@ -2475,6 +2496,20 @@ module.exports = async (req, res) => {
       // Trecho inicial da música (segundos): número inteiro entre 0 e 4 horas.
       const musicStart = music ? Math.min(14400, Math.max(0, Math.floor(Number(d0.music_start) || 0))) : 0;
       if (!body && !rawImages.length && !music) throw new HttpError(400, 'post_empty');
+      // Enquete (2 a 4 opções) ou pergunta: o texto do post é a pergunta.
+      let kind = 'post'; let pollOptions = []; let pollHours = 24;
+      if (d0.poll) {
+        await requireFeature('polls');
+        if (!body) throw new HttpError(400, 'poll_needs_question');
+        pollOptions = [...new Set((Array.isArray(d0.poll.options) ? d0.poll.options : []).map((o) => str(o, 60)).filter(Boolean))];
+        if (pollOptions.length < 2 || pollOptions.length > 4) throw new HttpError(400, 'invalid_poll');
+        pollHours = [1, 6, 24, 72, 168].includes(Number(d0.poll.hours)) ? Number(d0.poll.hours) : 24;
+        kind = 'poll';
+      } else if (d0.kind === 'question') {
+        await requireFeature('questions');
+        if (!body) throw new HttpError(400, 'question_needs_text');
+        kind = 'question';
+      }
       // Colaboração: até 5 pessoas (nomes de usuário). Valida tudo antes de publicar.
       const collabNames = [...new Set((Array.isArray(d0.collaborators) ? d0.collaborators : []).map((n) => cleanUsername(String(n || '').replace(/^@/, ''))).filter(Boolean))];
       if (collabNames.length > 5) throw new HttpError(400, 'too_many_collabs');
@@ -2484,7 +2519,8 @@ module.exports = async (req, res) => {
         if (collabUsers.some((u) => u.id === me)) throw new HttpError(400, 'collab_self');
         if (collabUsers.length !== collabNames.length) throw new HttpError(404, 'collab_user_not_found');
       }
-      const [row] = await sql`INSERT INTO posts (user_id, body, music, music_title, music_start) VALUES (${me}, ${body}, ${music}, ${musicTitle}, ${musicStart}) RETURNING id`;
+      const [row] = await sql`INSERT INTO posts (user_id, body, music, music_title, music_start, kind, poll_ends_at) VALUES (${me}, ${body}, ${music}, ${musicTitle}, ${musicStart}, ${kind}, CASE WHEN ${kind} = 'poll' THEN now() + (${pollHours}::int * interval '1 hour') END) RETURNING id`;
+      for (let i = 0; i < pollOptions.length; i++) await sql`INSERT INTO poll_options (post_id, pos, text) VALUES (${row.id}, ${i}, ${pollOptions[i]})`;
       // Cada convite vira uma mensagem na conversa; o post só entra no perfil da pessoa quando ela aceita.
       for (const cu of collabUsers) {
         const [cb] = await sql`INSERT INTO post_collabs (post_id, inviter_id, user_id) VALUES (${row.id}, ${me}, ${cu.id}) RETURNING id`;
@@ -2501,6 +2537,51 @@ module.exports = async (req, res) => {
           0 AS likes, false AS liked
         FROM posts p JOIN users u ON u.id = p.user_id WHERE p.id = ${row.id}`;
       return send({ post: mapPost((await decorate([r]))[0]) }, 201);
+    }
+
+    // ---------- ENQUETES ----------
+    if (a === 'posts' && b && c === 'vote' && !d && method === 'POST') {
+      need();
+      const post = await findPost(b);
+      const optionId = parseInt(readBody(req).option_id, 10);
+      const [info] = await sql`SELECT kind, poll_ends_at FROM posts WHERE id = ${post.id}`;
+      if (!info || info.kind !== 'poll') throw new HttpError(404, 'not_found');
+      if (info.poll_ends_at && new Date(info.poll_ends_at) <= new Date()) throw new HttpError(409, 'poll_closed');
+      const [opt] = await sql`SELECT id FROM poll_options WHERE id = ${optionId} AND post_id = ${post.id}`;
+      if (!opt) throw new HttpError(400, 'invalid_option');
+      await sql`INSERT INTO poll_votes (post_id, user_id, option_id) VALUES (${post.id}, ${me}, ${opt.id}) ON CONFLICT (post_id, user_id) DO NOTHING`;
+      const [r] = await sql`SELECT p.id, p.body, p.created_at, u.id AS uid, u.username, u.name, u.avatar_v, u.verified, u.is_ai, u.pageup, 0 AS likes, false AS liked FROM posts p JOIN users u ON u.id = p.user_id WHERE p.id = ${post.id}`;
+      return send({ poll: mapPost((await decorate([r]))[0]).poll });
+    }
+
+    // ---------- PERGUNTAS E RESPOSTAS ----------
+    if (a === 'posts' && b && c === 'answers' && !d && method === 'GET') {
+      const post = await findPost(b);
+      const [info] = await sql`SELECT kind FROM posts WHERE id = ${post.id}`;
+      if (!info || info.kind !== 'question') throw new HttpError(404, 'not_found');
+      const rows = await sql`SELECT a.id, a.body, a.created_at, u.id AS uid, u.username, u.name, u.avatar_v, u.verified, u.is_ai, u.pageup
+        FROM post_answers a JOIN users u ON u.id = a.user_id WHERE a.post_id = ${post.id} AND u.banned_at IS NULL ORDER BY a.id DESC LIMIT 100`;
+      return send({ owner: me != null && post.user_id === me, answers: rows.map((r) => ({ id: r.id, body: r.body, created_at: r.created_at, mine: me != null && r.uid === me, user: pubUser(r) })) });
+    }
+    if (a === 'posts' && b && c === 'answers' && !d && method === 'POST') {
+      need();
+      const post = await findPost(b);
+      const [info] = await sql`SELECT kind FROM posts WHERE id = ${post.id}`;
+      if (!info || info.kind !== 'question') throw new HttpError(404, 'not_found');
+      const text = str(readBody(req).body, 300);
+      if (!text) throw new HttpError(400, 'answer_empty');
+      const ins = await sql`INSERT INTO post_answers (post_id, user_id, body) VALUES (${post.id}, ${me}, ${text}) ON CONFLICT (post_id, user_id) DO NOTHING RETURNING id`;
+      if (!ins.length) throw new HttpError(409, 'already_answered');
+      await recordVerificationDay(me, 'interaction');
+      if (await verifiedBannerEnabled()) await maybeCompleteVerification(me);
+      return send({ ok: true, id: ins[0].id }, 201);
+    }
+    if (a === 'posts' && b && c === 'answers' && d && method === 'DELETE') {
+      need();
+      const post = await findPost(b);
+      const aid = parseInt(d, 10);
+      const del = await sql`DELETE FROM post_answers WHERE id = ${aid} AND post_id = ${post.id} AND (user_id = ${me} OR ${post.user_id === me})`;
+      return send({ ok: true });
     }
 
     if (a === 'posts' && b && !c && method === 'DELETE') {

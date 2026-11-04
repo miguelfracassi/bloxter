@@ -36,9 +36,21 @@
             </div>
             <small class="collab-hint">O convite chega pela conversa. O post só aparece no perfil de quem aceitar.</small>
           </div>
+          <div class="composer-poll" id="composer-poll" hidden>
+            <div class="poll-opts" id="poll-opts">
+              <input type="text" class="composer-music" data-poll-opt maxlength="60" placeholder="Opção 1" autocomplete="off" />
+              <input type="text" class="composer-music" data-poll-opt maxlength="60" placeholder="Opção 2" autocomplete="off" />
+            </div>
+            <div class="poll-tools">
+              <button type="button" class="btn ghost sm" data-act="polladd">+ Adicionar opção</button>
+              <label class="poll-dur">Duração <select id="poll-hours" aria-label="Duração da enquete"><option value="1">1 hora</option><option value="6">6 horas</option><option value="24" selected>1 dia</option><option value="72">3 dias</option><option value="168">7 dias</option></select></label>
+            </div>
+            <small class="collab-hint">Escreva a pergunta no campo acima. Cada pessoa vota uma vez.</small>
+          </div>
+          <div class="composer-qnote" id="composer-qnote" hidden>Escreva a sua pergunta acima. As pessoas respondem e você vê tudo em “Respostas”.</div>
           <div class="row">
             <label class="icon-btn composer-photo" title="Adicionar fotos ou vídeo" aria-label="Adicionar fotos ou vídeo">${BX.ICON.image}<input type="file" id="composer-files" accept="image/png,image/jpeg,image/webp,video/mp4,video/webm,video/quicktime" multiple hidden /></label>
-            <button type="button" class="icon-btn composer-music-btn" data-act="musictoggle" title="Adicionar música" aria-label="Adicionar música"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg></button><button type="button" class="icon-btn composer-collab-btn" data-act="collabtoggle" title="Convidar colaboradores" aria-label="Convidar colaboradores">${BX.ICON.people}<span class="collab-count" id="collab-count" hidden></span></button><span class="counter">500</span><button class="btn sm" type="submit">${t('post')}</button>
+            <button type="button" class="icon-btn composer-music-btn" data-act="musictoggle" title="Adicionar música" aria-label="Adicionar música"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg></button><button type="button" class="icon-btn composer-collab-btn" data-act="collabtoggle" title="Convidar colaboradores" aria-label="Convidar colaboradores">${BX.ICON.people}<span class="collab-count" id="collab-count" hidden></span></button>${state.features.polls ? `<button type="button" class="icon-btn composer-mode-btn" data-act="polltoggle" title="Criar enquete" aria-label="Criar enquete" aria-pressed="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20V10"/><path d="M10 20V4"/><path d="M16 20v-7"/><path d="M22 20H2"/></svg></button>` : ''}${state.features.questions ? `<button type="button" class="icon-btn composer-mode-btn" data-act="questiontoggle" title="Fazer uma pergunta" aria-label="Fazer uma pergunta" aria-pressed="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.7.4-1 .9-1 1.7"/><path d="M12 17h.01"/></svg></button>` : ''}<span class="counter">500</span><button class="btn sm" type="submit">${t('post')}</button>
           </div>
         </div>
       </form>
@@ -569,6 +581,32 @@
     if (rm) { composerCollabs.splice(Number(rm.dataset.rmCollab), 1); renderCollabs(); }
   });
 
+  let composerMode = ''; // '' | 'poll' | 'question'
+  function setComposerMode(mode) {
+    composerMode = composerMode === mode ? '' : mode;
+    const poll = $('#composer-poll'); const note = $('#composer-qnote');
+    if (poll) poll.hidden = composerMode !== 'poll';
+    if (note) note.hidden = composerMode !== 'question';
+    document.querySelectorAll('[data-act="polltoggle"]').forEach((b) => { b.classList.toggle('on', composerMode === 'poll'); b.setAttribute('aria-pressed', String(composerMode === 'poll')); });
+    document.querySelectorAll('[data-act="questiontoggle"]').forEach((b) => { b.classList.toggle('on', composerMode === 'question'); b.setAttribute('aria-pressed', String(composerMode === 'question')); });
+    const ta = $('.composer textarea');
+    if (ta && composerMode) ta.placeholder = composerMode === 'poll' ? 'Qual é a pergunta da enquete?' : 'Faça uma pergunta para a galera';
+    else if (ta) ta.placeholder = t('home.placeholder');
+  }
+  BX.actions.polltoggle = () => setComposerMode('poll');
+  BX.actions.questiontoggle = () => setComposerMode('question');
+  BX.actions.polladd = () => {
+    const box = $('#poll-opts'); if (!box) return;
+    const n = box.querySelectorAll('[data-poll-opt]').length;
+    if (n >= 4) return toast('Máximo de 4 opções.');
+    box.insertAdjacentHTML('beforeend', `<input type="text" class="composer-music" data-poll-opt maxlength="60" placeholder="Opção ${n + 1}" autocomplete="off" />`);
+  };
+  function resetComposerMode() {
+    if (composerMode) setComposerMode(composerMode);
+    const box = $('#poll-opts');
+    if (box) box.innerHTML = '<input type="text" class="composer-music" data-poll-opt maxlength="60" placeholder="Opção 1" autocomplete="off" /><input type="text" class="composer-music" data-poll-opt maxlength="60" placeholder="Opção 2" autocomplete="off" />';
+  }
+
   forms.post = async (form) => {
     const textarea = form.body;
     const body = textarea.value.trim();
@@ -576,15 +614,23 @@
     const music = musicInput ? musicInput.value.trim() : '';
     if (music && !BX.music.ytId(music)) return toast(t('err.invalid_music'));
     if (!body && !composerImages.length && !composerVideo && !music) return toast(t('err.post_empty'));
+    let poll;
+    if (composerMode === 'poll') {
+      if (!body) return toast('Escreva a pergunta da enquete.');
+      const options = [...document.querySelectorAll('[data-poll-opt]')].map((i) => i.value.trim()).filter(Boolean);
+      if (options.length < 2) return toast('A enquete precisa de pelo menos 2 opções.');
+      poll = { options, hours: Number(($('#poll-hours') || {}).value) || 24 };
+    } else if (composerMode === 'question' && !body) return toast('Escreva a sua pergunta.');
     const button = $('button[type=submit]', form);
     button.disabled = true;
     try {
-      const { post } = await api('posts', { method: 'POST', body: { body, images: composerImages, video: composerVideo || undefined, music: music || undefined, music_start: music ? BX.music.parseTime(($('#composer-music-start') || {}).value) : undefined, collaborators: composerCollabs.length ? composerCollabs.map((c) => c.username) : undefined } });
+      const { post } = await api('posts', { method: 'POST', body: { body, poll, kind: composerMode === 'question' ? 'question' : undefined, images: composerImages, video: composerVideo || undefined, music: music || undefined, music_start: music ? BX.music.parseTime(($('#composer-music-start') || {}).value) : undefined, collaborators: composerCollabs.length ? composerCollabs.map((c) => c.username) : undefined } });
       const invited = composerCollabs.length;
       resetCollabs();
       if (invited) toast(invited === 1 ? 'Convite enviado pela conversa.' : `${invited} convites enviados pela conversa.`);
       if (musicInput) { musicInput.value = ''; musicInput.hidden = true; clearMusicPreview(); }
       textarea.value = '';
+      resetComposerMode();
       composerImages = [];
       composerVideo = '';
       renderComposerPreviews();
