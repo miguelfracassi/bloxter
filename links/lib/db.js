@@ -404,6 +404,13 @@ async function createAll() {
     PRIMARY KEY (post_id, user_id)
   )`;
   await s`CREATE INDEX IF NOT EXISTS poll_votes_option_idx ON poll_votes (option_id)`;
+  // Permissões liberadas pelo administrador para contas específicas (ex.: 'polls', 'questions').
+  await s`CREATE TABLE IF NOT EXISTS user_perks (
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    perk TEXT NOT NULL,
+    granted_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    PRIMARY KEY (user_id, perk)
+  )`;
   await s`CREATE TABLE IF NOT EXISTS post_answers (
     id SERIAL PRIMARY KEY,
     post_id INTEGER NOT NULL REFERENCES posts(id) ON DELETE CASCADE,

@@ -399,7 +399,10 @@ module.exports = async (req, res) => {
 
     // Recursos que a administração libera para todos (inclui a aparência Liquid Glass).
     // Ficam na tabela site_settings (feature_<nome> = 'true'/'false') e começam bloqueados.
-    const FEATURES = ['comments', 'likes', 'hashtags', 'discord', 'liquid_glass', 'polls', 'questions'];
+    const FEATURES = ['comments', 'likes', 'hashtags', 'discord', 'liquid_glass'];
+    const PERKS = ['polls', 'questions'];
+    const hasPerk = async (uid, perk) => (await sql`SELECT 1 FROM user_perks WHERE user_id = ${uid} AND perk = ${perk}`).length > 0;
+    const requirePerk = async (perk) => { if (!(await hasPerk(me, perk))) throw new HttpError(403, 'perk_required'); };
     const featureRows = async () => {
       const rows = await sql`SELECT setting_key, setting_value FROM site_settings WHERE setting_key LIKE 'feature%'`;
       return Object.fromEntries(rows.map((r) => [r.setting_key, r.setting_value]));
@@ -1479,6 +1482,23 @@ module.exports = async (req, res) => {
         }
         return send(await adminFeatures());
       }
+      // Contas liberadas para criar enquetes e perguntas.
+      if (b === 'perks' && !c && method === 'GET') {
+        res.setHeader('Cache-Control', 'no-store');
+        const rows = await sql`SELECT u.id AS uid, u.username, u.name, u.avatar_v, u.verified, u.is_ai, u.pageup, array_agg(k.perk) AS perks
+          FROM user_perks k JOIN users u ON u.id = k.user_id GROUP BY u.id ORDER BY max(k.granted_at) DESC`;
+        return send({ users: rows.map((r) => ({ ...pubUser(r), polls: r.perks.includes('polls'), questions: r.perks.includes('questions') })) });
+      }
+      if (b === 'perks' && c && method === 'PATCH') {
+        const d2 = readBody(req);
+        if (!PERKS.includes(d2.perk) || typeof d2.enabled !== 'boolean') throw new HttpError(400, 'invalid_setting');
+        const uname = cleanUsername(String(c).replace(/^@/, ''));
+        const [target] = uname ? await sql`SELECT id FROM users WHERE username = ${uname}` : [];
+        if (!target) throw new HttpError(404, 'user_not_found');
+        if (d2.enabled) await sql`INSERT INTO user_perks (user_id, perk) VALUES (${target.id}, ${d2.perk}) ON CONFLICT DO NOTHING`;
+        else await sql`DELETE FROM user_perks WHERE user_id = ${target.id} AND perk = ${d2.perk}`;
+        return send({ ok: true });
+      }
       if (b === 'ads' && !c && method === 'GET') {
         const rows = await sql`
           SELECT p.id, p.body, p.created_at, u.id AS uid, u.username, u.name, u.avatar_v, u.verified, u.is_ai, u.pageup,
@@ -2246,7 +2266,8 @@ module.exports = async (req, res) => {
         clearSession(res);
         return send({ user: null });
       }
-      return send({ user: meUser(row) });
+      const perkRows = await sql`SELECT perk FROM user_perks WHERE user_id = ${me}`;
+      return send({ user: { ...meUser(row), perks: Object.fromEntries(PERKS.map((k) => [k, perkRows.some((x) => x.perk === k)])) } });
     }
 
     if (a === 'roblox' && b === 'lookup' && method === 'GET') {
@@ -2499,14 +2520,14 @@ module.exports = async (req, res) => {
       // Enquete (2 a 4 opções) ou pergunta: o texto do post é a pergunta.
       let kind = 'post'; let pollOptions = []; let pollHours = 24;
       if (d0.poll) {
-        await requireFeature('polls');
+        await requirePerk('polls');
         if (!body) throw new HttpError(400, 'poll_needs_question');
         pollOptions = [...new Set((Array.isArray(d0.poll.options) ? d0.poll.options : []).map((o) => str(o, 60)).filter(Boolean))];
         if (pollOptions.length < 2 || pollOptions.length > 4) throw new HttpError(400, 'invalid_poll');
         pollHours = [1, 6, 24, 72, 168].includes(Number(d0.poll.hours)) ? Number(d0.poll.hours) : 24;
         kind = 'poll';
       } else if (d0.kind === 'question') {
-        await requireFeature('questions');
+        await requirePerk('questions');
         if (!body) throw new HttpError(400, 'question_needs_text');
         kind = 'question';
       }

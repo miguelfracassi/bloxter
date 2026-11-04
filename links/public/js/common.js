@@ -42,7 +42,7 @@
     feedTab: 'all',
     unread: 0,
     // Recursos que a administração libera em /administracao. Começam bloqueados até o site/status responder.
-    features: { comments: false, likes: false, hashtags: false, discord: false, liquid_glass: false, polls: false, questions: false },
+    features: { comments: false, likes: false, hashtags: false, discord: false, liquid_glass: false },
   };
 
   /* =====================================================
@@ -247,6 +247,7 @@
       'err.name_required': 'Digite seu nome.',
       'err.terms_required': 'Para criar a conta, você precisa aceitar os Termos de Serviço.',
       'err.post_empty': 'Escreva algo ou adicione uma foto antes de postar.',
+      'err.perk_required': 'Sua conta ainda não foi liberada para este recurso.',
       'err.too_many_collabs': 'Você pode convidar até 5 pessoas.',
       'err.collab_self': 'Você não pode convidar a si mesmo.',
       'err.collab_user_not_found': 'Não encontramos uma das pessoas convidadas.',
@@ -531,6 +532,7 @@
       'err.name_required': 'Enter your name.',
       'err.terms_required': 'To create an account you must accept the Terms of Service.',
       'err.post_empty': 'Write something or add a photo before posting.',
+      'err.perk_required': 'Your account has not been enabled for this feature yet.',
       'err.too_many_collabs': 'You can invite up to 5 people.',
       'err.collab_self': 'You cannot invite yourself.',
       'err.collab_user_not_found': 'We could not find one of the invited people.',

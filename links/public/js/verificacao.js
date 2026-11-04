@@ -799,8 +799,6 @@
       likes: { name: 'Curtidas', desc: 'Botão de curtir nos posts e nos comentários, com a contagem.' },
       hashtags: { name: 'Hashtags (#)', desc: 'As #hashtags viram link, a busca por # e a página Top #.' },
       discord: { name: 'Discord', desc: 'Página /discord, link no rodapé e a opção *discord do PageUP.' },
-      polls: { name: 'Enquetes', desc: 'Libera o botão de enquete ao publicar: 2 a 4 opções, com duração e resultado em porcentagem. Cada pessoa vota uma vez.' },
-      questions: { name: 'Perguntas', desc: 'Libera o post de pergunta: as pessoas respondem e o autor vê todas as respostas no próprio post.' },
       liquid_glass: { name: 'Tema Liquid Glass', desc: 'Libera a aparência de vidro translúcido em Acessibilidade. Cada pessoa pode voltar ao visual normal a qualquer momento.' },
     };
     const when = (d) => new Date(d).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
@@ -834,7 +832,42 @@
         <h2 style="font-size:17px;margin:0 0 4px">Recursos</h2>
         <p class="sub" style="margin:0 0 12px">Ao clicar em <b>Liberar</b>, o recurso passa a aparecer para todos os usuários, na hora. Fica salvo no banco de dados. <b>Bloquear</b> esconde de novo.</p>
         <div class="row" style="margin-bottom:6px"><button class="btn sm" type="button" data-all="on">Liberar tudo</button><button class="btn sm ghost" type="button" data-all="off">Bloquear tudo</button></div>
-        <div id="f-list"><div class="empty">Carregando…</div></div>`;
+        <div id="f-list"><div class="empty">Carregando…</div></div>
+        <h2 style="font-size:17px;margin:22px 0 4px">Enquetes e Perguntas</h2>
+        <p class="sub" style="margin:0 0 12px">Só as contas liberadas aqui veem os botões de <b>enquete</b> e de <b>pergunta</b> ao publicar. Todo mundo pode votar e responder.</p>
+        <form class="row" id="perk-form" style="gap:8px;flex-wrap:wrap;margin-bottom:10px"><input id="perk-user" type="text" placeholder="@usuario" autocomplete="off" style="flex:1;min-width:150px" aria-label="Nome de usuário" /><label><input type="checkbox" id="perk-polls" checked /> Enquetes</label><label><input type="checkbox" id="perk-questions" checked /> Perguntas</label><button class="btn sm" type="submit">Liberar conta</button></form>
+        <div id="perk-list"><div class="empty">Carregando…</div></div>`;
+      const perkSet = async (username, perk, enabled) => { await api(`admin/perks/${encodeURIComponent(username)}`, 'PATCH', { perk, enabled }); };
+      const drawPerks = async () => {
+        const list = box.querySelector('#perk-list');
+        try {
+          const { users } = await api('admin/perks');
+          list.innerHTML = users.length ? users.map((u) => `<div class="u" data-perk-user="${esc(u.username)}"><div class="uh"><div class="info"><b>${esc(u.name)} <span class="h">@${esc(u.username)}</span></b><span class="count" style="display:flex;gap:14px;margin-top:4px"><label><input type="checkbox" data-perk="polls" ${u.polls ? 'checked' : ''} /> Enquetes</label><label><input type="checkbox" data-perk="questions" ${u.questions ? 'checked' : ''} /> Perguntas</label></span></div><button class="btn sm ghost" type="button" data-perk-remove>Remover</button></div></div>`).join('') : '<div class="empty">Nenhuma conta liberada ainda.</div>';
+        } catch (e) { if (e.status === 401) return loginView(); list.innerHTML = '<div class="empty">Erro ao carregar.</div>'; }
+      };
+      box.querySelector('#perk-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const name = box.querySelector('#perk-user').value.trim().replace(/^@/, '');
+        const wants = { polls: box.querySelector('#perk-polls').checked, questions: box.querySelector('#perk-questions').checked };
+        if (!name) return toast('Digite o nome de usuário.');
+        if (!wants.polls && !wants.questions) return toast('Marque Enquetes e/ou Perguntas.');
+        try {
+          for (const k of Object.keys(wants)) if (wants[k]) await perkSet(name, k, true);
+          box.querySelector('#perk-user').value = '';
+          toast(`@${name} liberado.`); drawPerks();
+        } catch (err) { if (err.status === 401) return loginView(); toast(err.status === 404 ? 'Essa conta não existe.' : 'Não foi possível salvar.'); }
+      });
+      box.querySelector('#perk-list').addEventListener('click', async (e) => {
+        const rm = e.target.closest('[data-perk-remove]'); if (!rm) return;
+        const row = rm.closest('[data-perk-user]');
+        try { for (const k of ['polls', 'questions']) await perkSet(row.dataset.perkUser, k, false); toast('Acesso removido.'); drawPerks(); } catch { toast('Não foi possível remover.'); }
+      });
+      box.querySelector('#perk-list').addEventListener('change', async (e) => {
+        const cb = e.target.closest('[data-perk]'); if (!cb) return;
+        const row = cb.closest('[data-perk-user]');
+        try { await perkSet(row.dataset.perkUser, cb.dataset.perk, cb.checked); drawPerks(); } catch { toast('Não foi possível salvar.'); cb.checked = !cb.checked; }
+      });
+      drawPerks();
       box.querySelector('[data-all]').parentElement.addEventListener('click', (e) => {
         const b = e.target.closest('[data-all]');
         if (b) save('all', b.dataset.all === 'on', b);
