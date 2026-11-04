@@ -1274,8 +1274,8 @@
         let finished = false;
         const end = () => { if (finished) return; finished = true; el.remove(); done(); };
         // desenha (0.65 s), segura um instante e some (0.25 s)
-        setTimeout(() => el.classList.add('out'), calm ? 650 : 850);
-        setTimeout(end, calm ? 930 : 1130);
+        setTimeout(() => el.classList.add('out'), 850);
+        setTimeout(end, 1130);
         setTimeout(end, 2500);
       } catch { done(); }
     });
