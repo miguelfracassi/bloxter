@@ -1811,3 +1811,16 @@ img { display: block; max-width: 100%; }
 .qa-empty { color: var(--fg2); font-size: 13px; }
 .qa-form { display: flex; gap: 8px; }
 .qa-form input { flex: 1; min-width: 0; padding: 9px 12px; border-radius: 999px; border: 1px solid var(--line); background: transparent; color: var(--fg); font: inherit; }
+
+/* ===== Abertura animada do logotipo ===== */
+.bx-intro { position: fixed; inset: 0; z-index: 99999; display: grid; place-items: center; background: var(--bg, #000); opacity: 1; transition: opacity .28s ease; }
+.bx-intro.out { opacity: 0; }
+.bx-intro-logo { width: min(34vw, 150px); height: auto; overflow: visible; }
+.bx-intro-draw { stroke-dasharray: 1; stroke-dashoffset: 1; animation: bx-intro-draw .55s cubic-bezier(.65, 0, .35, 1) .05s forwards; }
+.bx-intro.out .bx-intro-logo { transform: scale(1.06); transition: transform .28s ease; }
+@keyframes bx-intro-draw { to { stroke-dashoffset: 0; } }
+
+/* Quem desliga animações no sistema vê o logotipo surgir suave, sem desenhar o traço. */
+.bx-intro.calm .bx-intro-draw { stroke-dashoffset: 0; animation: none; }
+.bx-intro.calm .bx-intro-logo { animation: bx-intro-fade .35s ease both; }
+@keyframes bx-intro-fade { from { opacity: 0; } to { opacity: 1; } }

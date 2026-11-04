@@ -1253,6 +1253,34 @@
     b.classList.toggle('open', open);
   });
 
+  // Abertura animada do logotipo (só ao entrar na conta ou depois de criar uma conta): o "B" se desenha rápido e o site abre.
+  function playIntro() {
+    return new Promise((done) => {
+      try {
+        const calm = !!(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches);
+        const dark = document.documentElement.dataset.theme !== 'light';
+        const el = document.createElement('div');
+        el.className = calm ? 'bx-intro calm' : 'bx-intro';
+        el.setAttribute('aria-hidden', 'true');
+        el.innerHTML = `<svg viewBox="0 0 340 340" class="bx-intro-logo" focusable="false">
+          <defs>
+            <mask id="bxi-shape" maskUnits="userSpaceOnUse" x="0" y="0" width="340" height="340"><image href="/symbol.png" x="0" y="0" width="340" height="340"/></mask>
+            <mask id="bxi-reveal" maskUnits="userSpaceOnUse" x="0" y="0" width="340" height="340"><path class="bx-intro-draw" pathLength="1" d="M67.0 269.0 L64.7 262.0 L61.1 254.0 L58.3 246.0 L56.6 238.0 L55.0 230.0 L54.3 222.0 L54.0 214.0 L53.9 206.0 L54.0 198.0 L55.0 190.0 L55.9 182.0 L57.3 174.0 L58.9 166.0 L61.1 158.0 L63.1 150.0 L66.1 142.0 L69.1 134.0 L72.4 126.0 L76.6 118.0 L81.1 110.0 L86.0 102.0 L91.6 94.0 L97.9 86.0 L104.0 79.0 L112.0 71.0 L120.0 63.6 L128.0 57.1 L136.0 51.9 L144.0 47.0 L152.0 43.3 L160.0 40.0 L168.0 37.3 L176.0 35.3 L184.0 34.3 L192.0 33.3 L200.0 32.6 L208.0 33.1 L216.0 34.3 L224.0 36.1 L232.0 39.7 L240.0 46.0 L245.6 54.0 L247.7 62.0 L249.3 70.0 L249.9 78.0 L248.7 86.0 L247.1 94.0 L244.6 101.0 L241.3 109.0 L233.3 117.4 L222.0 120.3 L214.0 121.0 L206.0 121.9 L198.0 122.7 L190.0 124.0 L182.0 126.4 L174.0 129.0 L166.0 132.3 L158.0 136.1 L150.0 140.4 L142.0 145.7 L134.0 152.0 L126.9 160.0 L121.7 168.0 L119.4 176.0 L118.0 184.0 L118.7 192.0 L121.6 200.0 L129.0 205.3 L137.0 206.9 L145.0 207.4 L152.0 206.6 L160.0 204.9 L168.0 202.1 L176.0 198.6 L184.0 194.0 L192.0 188.4 L200.0 182.3 L208.0 175.0 L216.0 167.0 L223.7 159.0 L232.4 151.1 L244.0 150.1 L252.0 152.4 L260.0 157.1 L267.4 165.0 L273.0 173.0 L277.3 181.0 L280.3 189.0 L282.6 197.0 L283.7 205.0 L284.6 213.0 L285.0 221.0 L284.0 229.0 L283.0 237.0 L281.1 244.0 L278.6 252.0 L274.7 260.0 L269.6 268.0 L263.7 276.0 L256.0 284.0 L248.0 290.1 L240.0 295.1 L232.0 299.1 L224.0 302.1 L216.0 304.1 L208.0 305.3 L200.0 306.0 L192.0 305.9 L184.0 304.9 L176.0 303.9 L168.0 302.1 L160.0 299.7 L152.0 295.7 L144.0 291.4 L136.0 286.3 L128.0 280.4 L120.0 274.3 L112.0 268.0" fill="none" stroke="#fff" stroke-width="54" stroke-linecap="round" stroke-linejoin="round"/></mask>
+          </defs>
+          <g mask="url(#bxi-reveal)"><rect width="340" height="340" fill="currentColor" mask="url(#bxi-shape)"/></g>
+        </svg>`;
+        el.style.color = dark ? '#fff' : '#111';
+        document.body.appendChild(el);
+        let finished = false;
+        const end = () => { if (finished) return; finished = true; el.remove(); done(); };
+        // desenha (0.65 s), segura um instante e some (0.25 s)
+        setTimeout(() => el.classList.add('out'), calm ? 650 : 850);
+        setTimeout(end, calm ? 930 : 1130);
+        setTimeout(end, 2500);
+      } catch { done(); }
+    });
+  }
+
   function publicShell() {
     state.shell = 'public';
     root.innerHTML = `
@@ -2919,7 +2947,7 @@
 
   window.BX = {
     $, root, esc, debounce, store, state, t, errMsg, api, toast, ICON, avatar, ago, hhmm, fmt, PAGEUP_PAGES,
-    accountPath, toggles, langToggle, setTitle, go, safeNext, appShell, publicShell, refreshShellText,
+    accountPath, toggles, langToggle, playIntro, setTitle, go, safeNext, appShell, publicShell, refreshShellText,
     setActiveNav, updateBadge, pollUnread, badges, followLabel, userRow, usernameChecker, postHTML, loadMoreBtn, feed,
     loadPosts, setFeed, forms, actions, openSheet, openReport, openPost, openImageViewer, imagesHTML, subscribePush, applyLang, applyTheme, openProfileDetails, openOnboarding, init,
     music: { seek: (bar, sec) => { if (bar === music.bar && music.player) { try { music.player.seekTo(sec, true); } catch { /* ignore */ } } }, html: musicHTML, prepare: () => loadYT().catch(() => null), ytId, ytStart, parseTime, fmtTime, stop: stopMusic, sync: syncMusicUI, autoButton: () => `<button type="button" class="btn ghost sm" data-act="musicauto" aria-pressed="${music.autoFollow}">${music.autoFollow ? 'Som automático ligado' : 'Som automático'}</button>`, setAuto: setAutoMusic },
