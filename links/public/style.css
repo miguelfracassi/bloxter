@@ -1823,83 +1823,58 @@ img { display: block; max-width: 100%; }
 /* Quem desliga animações no sistema também vê o traço se formando (é rápido e sem zoom). */
 .bx-intro.calm.out .bx-intro-logo { transform: none; }
 
-/* ===== Liquid Glass (referência: pílula de vidro com borda de luz) =====
-   Só botões, menus, pop-ups e elementos flutuantes; só com data-appearance='liquid'.
-   Fundo, sidebar e feed não são alterados. */
-:root[data-appearance='liquid'] {
-  --lg-spec: radial-gradient(46% 70% at 22% 0%, rgba(255,255,255,.55), rgba(255,255,255,.10) 55%, transparent 78%);
-  --lg-cyan: radial-gradient(60% 55% at 50% 100%, rgba(120,235,225,.22), transparent 75%);
-}
-/* botões */
-:root[data-appearance='liquid'] .btn,
-:root[data-appearance='liquid'] .icon-btn {
-  position: relative; isolation: isolate;
-  -webkit-backdrop-filter: blur(14px) saturate(160%); backdrop-filter: blur(14px) saturate(160%);
-  box-shadow: inset 0 1px 0 rgba(255,255,255,.55), inset 0 -1px 0 rgba(120,235,225,.40), inset 0 0 14px rgba(255,255,255,.06), 0 6px 18px -8px rgba(0,0,0,.45);
-}
-:root[data-appearance='liquid'] .btn:not(.ghost):not(.danger) { background: color-mix(in srgb, var(--btn-bg) 86%, transparent); }
-:root[data-appearance='liquid'] .btn.ghost,
-:root[data-appearance='liquid'] .icon-btn { background: rgba(255,255,255,.06); border-color: rgba(255,255,255,.22); }
-:root[data-appearance='liquid'] .btn::before,
-:root[data-appearance='liquid'] .icon-btn::before {
-  content: ''; position: absolute; inset: 0; z-index: -1; border-radius: inherit; pointer-events: none;
-  background: var(--lg-spec), var(--lg-cyan);
-  background-size: 70% 100%, 100% 100%; background-repeat: no-repeat;
-}
-:root[data-appearance='liquid'] .btn::after,
-:root[data-appearance='liquid'] .icon-btn::after {
-  content: ''; position: absolute; left: 22%; right: 22%; bottom: 0; height: 1.5px; z-index: -1; pointer-events: none;
-  background: linear-gradient(90deg, transparent, rgba(140,245,235,.9), transparent); filter: blur(.4px);
-}
-@media (hover: hover) and (pointer: fine) {
-  :root[data-appearance='liquid'] .btn:hover:not([disabled]),
-  :root[data-appearance='liquid'] .icon-btn:hover {
-    box-shadow: inset 0 1px 0 rgba(255,255,255,.7), inset 0 -1px 0 rgba(120,235,225,.6), inset 0 0 16px rgba(255,255,255,.10), 0 8px 22px -8px rgba(0,0,0,.5);
-  }
-}
-/* menus, pop-ups e elementos flutuantes */
+/* ===== Liquid Glass: SOMENTE botões (transparência sutil + blur 12px) =====
+   Todo o resto (sidebar, cabeçalho, stories, feed, cards, menus, fundo) volta ao preto/visual original. */
+:root[data-appearance='liquid'][data-theme='dark'] { --bg:#000; --card:#0a0a0a; --line:#222; --hover:#0e0e0e; --shadow:rgba(255,255,255,.08); }
+:root[data-appearance='liquid'][data-theme='light'] { --bg:#fff; --card:#fafafa; --line:#e4e4e4; --hover:#f5f5f5; --shadow:rgba(0,0,0,.1); }
+:root[data-appearance='liquid'] body { background-image: none; }
+:root[data-appearance='liquid'] .side,
+:root[data-appearance='liquid'] .nav,
+:root[data-appearance='liquid'] .box,
+:root[data-appearance='liquid'] .setting-card,
+:root[data-appearance='liquid'] .profile-head,
+:root[data-appearance='liquid'] .stories-panel,
+:root[data-appearance='liquid'] .topbar,
+:root[data-appearance='liquid'] .page-head,
+:root[data-appearance='liquid'] .notif,
 :root[data-appearance='liquid'] .menu-pop,
 :root[data-appearance='liquid'] .acct-pop,
 :root[data-appearance='liquid'] .post-pop,
 :root[data-appearance='liquid'] .collab-suggest,
-:root[data-appearance='liquid'] .bx-modal-card {
-  background-color: color-mix(in srgb, var(--bg) 62%, transparent);
-  background-image: var(--lg-spec), var(--lg-cyan), linear-gradient(180deg, rgba(255,255,255,.08), rgba(255,255,255,.01));
-  background-size: 60% 55%, 100% 100%, 100% 100%; background-repeat: no-repeat;
-  border: 1px solid rgba(255,255,255,.24);
-  -webkit-backdrop-filter: blur(20px) saturate(165%); backdrop-filter: blur(20px) saturate(165%);
-  box-shadow: inset 0 1px 0 rgba(255,255,255,.55), inset 0 -1px 0 rgba(120,235,225,.38), inset 0 0 22px rgba(255,255,255,.05), 0 16px 44px rgba(0,0,0,.38);
-}
-:root[data-appearance='liquid'] .menu-pop,
-:root[data-appearance='liquid'] .acct-pop,
-:root[data-appearance='liquid'] .post-pop,
-:root[data-appearance='liquid'] .collab-suggest { border-radius: 22px; }
+:root[data-appearance='liquid'] .bx-modal-card,
 :root[data-appearance='liquid'] .toast {
-  background-color: color-mix(in srgb, var(--fg) 80%, transparent);
-  background-image: var(--lg-spec); background-size: 60% 100%; background-repeat: no-repeat;
-  -webkit-backdrop-filter: blur(16px) saturate(160%); backdrop-filter: blur(16px) saturate(160%);
-  box-shadow: inset 0 1px 0 rgba(255,255,255,.6), inset 0 -1px 0 rgba(120,235,225,.45), 0 10px 28px rgba(0,0,0,.35);
+  background-color: var(--bg); background-image: none;
+  -webkit-backdrop-filter: none; backdrop-filter: none; box-shadow: none;
 }
-@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
-  :root[data-appearance='liquid'] .menu-pop,
-  :root[data-appearance='liquid'] .acct-pop,
-  :root[data-appearance='liquid'] .post-pop,
-  :root[data-appearance='liquid'] .collab-suggest,
-  :root[data-appearance='liquid'] .bx-modal-card { background-color: var(--card); }
+:root[data-appearance='liquid'] .box,
+:root[data-appearance='liquid'] .setting-card,
+:root[data-appearance='liquid'] .notif { background-color: var(--card); }
+:root[data-appearance='liquid'] .toast { background-color: var(--fg); }
+/* botões: vidro sutil, sem brilho, reflexo ou borda luminosa */
+:root[data-appearance='liquid'] .btn,
+:root[data-appearance='liquid'] .icon-btn,
+:root[data-appearance='liquid'] .mobile-compose {
+  -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px);
+  box-shadow: none; text-shadow: none;
 }
-/* animação de entrada: só no primeiro acesso (classe .lg-intro é posta e retirada pelo JS, uma única vez) */
-@keyframes lg-in {
-  from { opacity: 0; filter: blur(10px) brightness(1.7); }
-  60%  { opacity: 1; }
-  to   { opacity: 1; filter: none; }
+:root[data-appearance='liquid'] .btn:not(.ghost):not(.danger),
+:root[data-appearance='liquid'] .mobile-compose { background: color-mix(in srgb, var(--btn-bg) 85%, transparent); }
+:root[data-appearance='liquid'] .btn.ghost,
+:root[data-appearance='liquid'] .icon-btn { background: color-mix(in srgb, var(--fg) 6%, transparent); border-color: var(--line); }
+:root[data-appearance='liquid'] .btn.danger { background: rgba(199,57,57,.88); }
+:root[data-appearance='liquid'] .btn::before,
+:root[data-appearance='liquid'] .btn::after,
+:root[data-appearance='liquid'] .icon-btn::before,
+:root[data-appearance='liquid'] .icon-btn::after { content: none; }
+@media (hover: hover) and (pointer: fine) {
+  :root[data-appearance='liquid'] .btn:hover:not([disabled]),
+  :root[data-appearance='liquid'] .icon-btn:hover { box-shadow: none; -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px); }
 }
+/* entrada: só botões, só no primeiro acesso (classe posta/retirada uma vez pelo JS) */
+@keyframes lg-in { from { opacity: 0; } to { opacity: 1; } }
 :root.lg-intro[data-appearance='liquid'] .btn,
-:root.lg-intro[data-appearance='liquid'] .icon-btn,
-:root.lg-intro[data-appearance='liquid'] .menu-pop,
-:root.lg-intro[data-appearance='liquid'] .acct-pop { animation: lg-in .9s cubic-bezier(.22,.8,.3,1) .45s backwards; }
+:root.lg-intro[data-appearance='liquid'] .icon-btn { animation: lg-in .7s ease .45s backwards; }
 @media (prefers-reduced-motion: reduce) {
   :root.lg-intro[data-appearance='liquid'] .btn,
-  :root.lg-intro[data-appearance='liquid'] .icon-btn,
-  :root.lg-intro[data-appearance='liquid'] .menu-pop,
-  :root.lg-intro[data-appearance='liquid'] .acct-pop { animation: none; }
+  :root.lg-intro[data-appearance='liquid'] .icon-btn { animation: none; }
 }
