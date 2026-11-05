@@ -1823,6 +1823,62 @@ img { display: block; max-width: 100%; }
 /* Quem desliga animações no sistema também vê o traço se formando (é rápido e sem zoom). */
 .bx-intro.calm.out .bx-intro-logo { transform: none; }
 
+/* ===== Liquid Glass: SOMENTE botões (transparência sutil + blur 12px) =====
+   Todo o resto (sidebar, cabeçalho, stories, feed, cards, menus, fundo) volta ao preto/visual original. */
+:root[data-appearance='liquid'][data-theme='dark'] { --bg:#000; --card:#0a0a0a; --line:#222; --hover:#0e0e0e; --shadow:rgba(255,255,255,.08); }
+:root[data-appearance='liquid'][data-theme='light'] { --bg:#fff; --card:#fafafa; --line:#e4e4e4; --hover:#f5f5f5; --shadow:rgba(0,0,0,.1); }
+:root[data-appearance='liquid'] body { background-image: none; }
+:root[data-appearance='liquid'] .side,
+:root[data-appearance='liquid'] .nav,
+:root[data-appearance='liquid'] .box,
+:root[data-appearance='liquid'] .setting-card,
+:root[data-appearance='liquid'] .profile-head,
+:root[data-appearance='liquid'] .stories-panel,
+:root[data-appearance='liquid'] .topbar,
+:root[data-appearance='liquid'] .page-head,
+:root[data-appearance='liquid'] .notif,
+:root[data-appearance='liquid'] .menu-pop,
+:root[data-appearance='liquid'] .acct-pop,
+:root[data-appearance='liquid'] .post-pop,
+:root[data-appearance='liquid'] .collab-suggest,
+:root[data-appearance='liquid'] .bx-modal-card,
+:root[data-appearance='liquid'] .toast {
+  background-color: var(--bg); background-image: none;
+  -webkit-backdrop-filter: none; backdrop-filter: none; box-shadow: none;
+}
+:root[data-appearance='liquid'] .box,
+:root[data-appearance='liquid'] .setting-card,
+:root[data-appearance='liquid'] .notif { background-color: var(--card); }
+:root[data-appearance='liquid'] .toast { background-color: var(--fg); }
+/* botões: vidro sutil, sem brilho, reflexo ou borda luminosa */
+:root[data-appearance='liquid'] .btn,
+:root[data-appearance='liquid'] .icon-btn,
+:root[data-appearance='liquid'] .mobile-compose {
+  -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px);
+  box-shadow: none; text-shadow: none;
+}
+:root[data-appearance='liquid'] .btn:not(.ghost):not(.danger),
+:root[data-appearance='liquid'] .mobile-compose { background: color-mix(in srgb, var(--btn-bg) 85%, transparent); }
+:root[data-appearance='liquid'] .btn.ghost,
+:root[data-appearance='liquid'] .icon-btn { background: color-mix(in srgb, var(--fg) 6%, transparent); border-color: var(--line); }
+:root[data-appearance='liquid'] .btn.danger { background: rgba(199,57,57,.88); }
+:root[data-appearance='liquid'] .btn::before,
+:root[data-appearance='liquid'] .btn::after,
+:root[data-appearance='liquid'] .icon-btn::before,
+:root[data-appearance='liquid'] .icon-btn::after { content: none; }
+@media (hover: hover) and (pointer: fine) {
+  :root[data-appearance='liquid'] .btn:hover:not([disabled]),
+  :root[data-appearance='liquid'] .icon-btn:hover { box-shadow: none; -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px); }
+}
+/* entrada: só botões, só no primeiro acesso (classe posta/retirada uma vez pelo JS) */
+@keyframes lg-in { from { opacity: 0; } to { opacity: 1; } }
+:root.lg-intro[data-appearance='liquid'] .btn,
+:root.lg-intro[data-appearance='liquid'] .icon-btn { animation: lg-in .7s ease .45s backwards; }
+@media (prefers-reduced-motion: reduce) {
+  :root.lg-intro[data-appearance='liquid'] .btn,
+  :root.lg-intro[data-appearance='liquid'] .icon-btn { animation: none; }
+}
+
 /* ===== Popup do Bloxter Glass: vidro líquido de verdade ===== */
 .bx-glass-invite { background: rgba(0,0,0,.28); -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); }
 .bx-glass-invite-card {

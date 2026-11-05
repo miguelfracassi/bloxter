@@ -651,6 +651,13 @@
     state.appearance = requested === 'liquid' && state.features.liquid_glass ? 'liquid' : 'normal';
     store.set('bx_appearance', state.appearance);
     document.documentElement.setAttribute('data-appearance', state.appearance);
+    if (state.appearance === 'liquid' && !store.get('bx_lg_intro')) {
+      // Entrada do Liquid Glass: só na primeira vez neste aparelho, nunca ao trocar de página.
+      store.set('bx_lg_intro', '1');
+      const root = document.documentElement;
+      root.classList.add('lg-intro');
+      setTimeout(() => root.classList.remove('lg-intro'), 2000);
+    }
     document.querySelectorAll('[data-act="appearanceset"]').forEach((button) => button.classList.toggle('on', button.dataset.val === state.appearance));
   }
   function maybeShowLiquidGlassInvite(access, attempt = 0) {
