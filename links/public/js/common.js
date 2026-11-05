@@ -651,13 +651,6 @@
     state.appearance = requested === 'liquid' && state.features.liquid_glass ? 'liquid' : 'normal';
     store.set('bx_appearance', state.appearance);
     document.documentElement.setAttribute('data-appearance', state.appearance);
-    if (state.appearance === 'liquid' && !store.get('bx_lg_intro')) {
-      // Entrada do Liquid Glass: só na primeira vez neste aparelho, nunca ao trocar de página.
-      store.set('bx_lg_intro', '1');
-      const root = document.documentElement;
-      root.classList.add('lg-intro');
-      setTimeout(() => root.classList.remove('lg-intro'), 2000);
-    }
     document.querySelectorAll('[data-act="appearanceset"]').forEach((button) => button.classList.toggle('on', button.dataset.val === state.appearance));
   }
   function maybeShowLiquidGlassInvite(access, attempt = 0) {
@@ -672,9 +665,9 @@
     invite.className = 'bx-glass-invite';
     invite.innerHTML = `<section class="bx-glass-invite-card" role="dialog" aria-modal="true" aria-labelledby="bx-glass-title" aria-describedby="bx-glass-copy">
       <span class="bx-glass-orb" aria-hidden="true">◌</span>
-      <h2 id="bx-glass-title">Que tal deixar mais moderno?</h2>
-      <p id="bx-glass-copy">Ative o modo Liquid Glass e aproveite. Você pode voltar ao modo normal a qualquer momento em Configurações → Acessibilidade → <a href="/settings#accessibility">Aparência</a>.</p>
-      <div class="bx-glass-actions"><button class="btn" type="button" data-glass-choice="activate">Ativar</button><button class="btn ghost" type="button" data-glass-choice="later">Agora não</button></div>
+      <h2 id="bx-glass-title">Use AGORA o Bloxter Glass</h2>
+      <p id="bx-glass-copy">Ative o Bloxter Glass (Liquid Glass) e deixe os botões com um vidro transparente. Você pode voltar ao modo normal a qualquer momento em Configurações → Acessibilidade → <a href="/settings#accessibility">Aparência</a>.</p>
+      <div class="bx-glass-actions"><button class="btn" type="button" data-glass-choice="activate">Usar agora</button><button class="btn ghost" type="button" data-glass-choice="later">Agora não</button></div>
     </section>`;
     const close = () => invite.remove();
     invite.addEventListener('click', (event) => {
@@ -684,7 +677,7 @@
       store.set(key, 'activated');
       applyAppearance('liquid');
       close();
-      toast('Liquid Glass ativado. Você pode voltar para Normal em Acessibilidade → Aparência.');
+      toast('Bloxter Glass ativado. Você pode voltar para Normal em Acessibilidade → Aparência.');
     });
     invite.querySelector('[data-glass-choice="later"]').addEventListener('click', () => { store.set(key, 'later'); close(); });
     invite.querySelector('a').addEventListener('click', () => { store.set(key, 'settings'); });
