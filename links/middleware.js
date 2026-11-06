@@ -2,7 +2,7 @@ import { next } from '@vercel/functions';
 
 export const config = {
   runtime: 'nodejs',
-  matcher: ['/((?!api/|maintenance(?:/|$)|offline(?:\\.html)?$|developers-services(?:/|$)|administracao(?:/|$)|team(?:/|$)|verificacao(?:\.html)?$|gerenciador(?:/|$)|.*\.(?:js|css|png|jpe?g|webp|gif|svg|ico|woff2?|mp4|webm|json|webmanifest|txt|xml)$).*)'],
+  matcher: ['/((?!api/|maintenance(?:/|$)|offline(?:\\.html)?$|developers-services(?:/|$)|admin(?:/|$)|administracao(?:/|$)|team(?:/|$)|verificacao(?:\.html)?$|gerenciador(?:/|$)|.*\.(?:js|css|png|jpe?g|webp|gif|svg|ico|woff2?|mp4|webm|json|webmanifest|txt|xml)$).*)'],
 };
 
 // Guarda por alguns segundos que o site NÃO está em manutenção, para não chamar a API + banco em toda navegação.

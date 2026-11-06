@@ -41,7 +41,7 @@
     timers: [],
     feedTab: 'all',
     unread: 0,
-    // Recursos que a administração libera em /administracao. Começam bloqueados até o site/status responder.
+    // Recursos que a administração libera em /admin. Começam bloqueados até o site/status responder.
     features: { comments: false, likes: false, hashtags: false, discord: false, liquid_glass: false },
   };
 
@@ -2865,7 +2865,7 @@
     const lg = store.get('bx_lang');
     applyLang(lg === 'en' || lg === 'pt' ? lg : (navigator.language || 'pt').toLowerCase().startsWith('pt') ? 'pt' : 'en', false);
     applyTheme(store.get('bx_theme') === 'light' ? 'light' : 'dark');
-    const adminPage = /^\/administracao(?:\/|$)/.test(location.pathname) || location.pathname === '/verificacao.html';
+    const adminPage = /^\/(?:admin|administracao)(?:\/|$)/.test(location.pathname) || location.pathname === '/verificacao.html';
     let adminPreview = false;
     let siteAccess = null;
     // Abertura do logotipo: uma vez por visita ao site, para quem já tem conta aberta (login e cadastro tocam a deles).

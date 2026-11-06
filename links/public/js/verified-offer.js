@@ -1,5 +1,5 @@
 /* Bloxter — banner "Seja verificado" da página inicial.
-   O administrador liga/desliga em /administracao. Enquanto estiver ligado, quem ainda não é
+   O administrador liga/desliga em /admin. Enquanto estiver ligado, quem ainda não é
    verificado vê o banner; ao clicar, a API dá o selo e tocamos confete + animação.
    Sem bibliotecas externas: o confete é desenhado num <canvas>. */
 (() => {

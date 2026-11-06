@@ -286,7 +286,7 @@ module.exports = async (req, res) => {
     // Diagnóstico: /api/health testa variáveis, módulos e banco de verdade.
     if (a === 'health') return require('./health')(req, res);
     // Login/saída/"estou logado?" do administrador não usam o banco. Ficam antes dele para o painel
-    // (/developers-services, /administracao) abrir mesmo quando o banco está fora do ar ou lento.
+    // (/developers-services, /admin) abrir mesmo quando o banco está fora do ar ou lento.
     if (a === 'admin' && b === 'login' && method === 'POST') {
       const d0 = readBody(req);
       const pw = typeof d0.password === 'string' ? d0.password : '';
@@ -385,13 +385,13 @@ module.exports = async (req, res) => {
       return { show_position: v.onboarding_show_position !== 'false', show_questions: v.onboarding_show_questions !== 'false' };
     };
 
-    // Trilha "Seja verificado" (ligada por padrão; o administrador pode desligá-la em /administracao).
+    // Trilha "Seja verificado" (ligada por padrão; o administrador pode desligá-la em /admin).
     const verifiedBannerEnabled = async () => {
       const [row] = await sql`SELECT setting_value FROM site_settings WHERE setting_key = 'verified_banner_enabled'`;
       return !row || row.setting_value !== 'false';
     };
 
-    // Selo "New" em Notificações + tour de primeiro acesso (ligado por padrão; o administrador retira em /administracao).
+    // Selo "New" em Notificações + tour de primeiro acesso (ligado por padrão; o administrador retira em /admin).
     const newNotifEnabled = async () => {
       const [row] = await sql`SELECT setting_value FROM site_settings WHERE setting_key = 'new_notif_enabled'`;
       return !row || row.setting_value !== 'false';
@@ -2381,7 +2381,7 @@ module.exports = async (req, res) => {
       return send({ user: meUser(row) });
     }
 
-    // ---------- POPUP DO SITE (configurado em /administracao) ----------
+    // ---------- POPUP DO SITE (configurado em /admin) ----------
     if (a === 'popup' && !b && method === 'GET') {
       const popup = await readPopup();
       res.setHeader('Cache-Control', 'no-store');

@@ -33,6 +33,10 @@
       "destination": "/chat.html"
     },
     {
+      "source": "/admin",
+      "destination": "/verificacao.html"
+    },
+    {
       "source": "/administracao",
       "destination": "/verificacao.html"
     },

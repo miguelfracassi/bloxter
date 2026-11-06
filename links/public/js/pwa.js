@@ -173,7 +173,7 @@
   }
 
   /* ---------- Convite da primeira visita ---------- */
-  const SKIP = /^\/(administracao|team|verificacao|gerenciador|maintenance|developers|oauth|oculto|app|offline|blog)/;
+  const SKIP = /^\/(admin|administracao|team|verificacao|gerenciador|maintenance|developers|oauth|oculto|app|offline|blog)/;
   let sheet = null;
 
   function injectStyle() {

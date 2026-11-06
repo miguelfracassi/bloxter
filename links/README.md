@@ -11,7 +11,7 @@ A rede social feita para quem vive o roleplay. Preto e branco, fonte Poppins, te
 - Seguir / deixar de seguir, busca de pessoas, mensagens diretas
 - Idioma PT/EN e tema claro/escuro (salvos no navegador)
 - Pré-inauguração em `/acess`, com reserva de usuário e checagem de e-mail/domínio via DNS (sem envio de mensagem)
-- Acesso público controlado no banco de dados e ajustável em `/administracao`
+- Acesso público controlado no banco de dados e ajustável em `/admin`
 
 ## Páginas (cada uma é um arquivo HTML separado)
 
@@ -21,7 +21,7 @@ A rede social feita para quem vive o roleplay. Preto e branco, fonte Poppins, te
 | `/login` | `public/login.html` | `js/login.js` |
 | `/signup` | `public/signup.html` | `js/signup.js` |
 | `/acess` | `public/acess.html` | `js/acess.js` |
-| `/administracao` | `public/verificacao.html` | `js/verificacao.js` |
+| `/admin` | `public/verificacao.html` | `js/verificacao.js` |
 | `/home` | `public/home.html` | `js/home.js` |
 | `/account?u=usuario` ou `/account/usuario` | `public/profile.html` | `js/profile.js` |
 | `/search` | `public/search.html` | `js/search.js` |
@@ -35,7 +35,7 @@ A rede social feita para quem vive o roleplay. Preto e branco, fonte Poppins, te
 1. Suba esta pasta para um repositório no GitHub e importe na Vercel.
 2. Banco: **Neon** (Vercel → Storage → Create → Neon) ou **Supabase** (grátis). Em qualquer caso, a variável `DATABASE_URL` precisa apontar para o Postgres. No Supabase use a *Connection string* do **Transaction pooler** (porta 6543).
 3. Em **Settings → Environment Variables**, crie `JWT_SECRET` (veja `.env.example`).
-4. Faça o deploy. As tabelas são criadas sozinhas na primeira requisição (o `schema.sql` é só referência). O site inicia fechado e a opção de abrir para todos fica em `/administracao`. A área administrativa pode acessar o site fechado usando o botão de entrada como administrador.
+4. Faça o deploy. As tabelas são criadas sozinhas na primeira requisição (o `schema.sql` é só referência). O site inicia fechado e a opção de abrir para todos fica em `/admin`. A área administrativa pode acessar o site fechado usando o botão de entrada como administrador.
 
 Testar local: `npm i -g vercel`, `npm install`, copie `.env.example` para `.env.local` e rode `vercel dev`.
 
@@ -54,7 +54,7 @@ vercel.json        URLs limpas (/login em vez de /login.html) e rotas com parâm
 
 ## Banner "Seja verificado"
 
-- Liga/desliga em **/administracao → Acesso ao site → Banner “Seja verificado”** (vem desligado).
+- Liga/desliga em **/admin → Acesso ao site → Banner “Seja verificado”** (vem desligado).
 - Ligado, quem ainda não é verificado vê o banner na página inicial (logo `public/verificado.png`). Clicar no banner chama `POST /api/me/verified`, que dá o selo, e toca confete + animação (`public/js/verified-offer.js`).
 - Desligado, o banner some e o clique é recusado pela API (403 `verified_offer_closed`). Quem já ganhou o selo continua verificado.
 - Rotas: `GET/PATCH /api/admin/verified-banner` (admin), `GET /api/me/verified-offer` e `POST /api/me/verified` (usuário logado). Configuração guardada em `site_settings.verified_banner_enabled`.
@@ -71,13 +71,13 @@ vercel.json        URLs limpas (/login em vez de /login.html) e rotas com parâm
 
 - O popup de notificações aparece **uma única vez por navegador** (quem responde, mesmo "Não Permito", nunca mais é perguntado).
 - Quem aceita é inscrito no push (tabela `push_subscriptions`, com tipo de aparelho: celular ou computador).
-- **/administracao → Chave Global**: título, descrição e link (opcional; vazio abre `/home`). "Enviar a todos" pede a senha, envia e mostra os totais de usuários (celular e computador).
+- **/admin → Chave Global**: título, descrição e link (opcional; vazio abre `/home`). "Enviar a todos" pede a senha, envia e mostra os totais de usuários (celular e computador).
 - Variáveis (Vercel): `PUSH_SEND_PASSWORD` (padrão `0000`), `VAPID_PUBLIC_KEY`/`VAPID_PRIVATE_KEY` (opcional: sem elas, as chaves são criadas e guardadas no banco na primeira vez), `VAPID_SUBJECT` (opcional).
 - Depende do pacote `web-push` (rode `npm install` / faça novo deploy).
 
 ## Notificações programadas (Chave Global)
 
-Em `/administracao` → Chave Global, preencha título, texto e link, escolha **Programar para** (e, se quiser, repetir todo dia/semana) e confirme com a senha. Dá para criar quantas quiser; a lista "Programadas" permite cancelar.
+Em `/admin` → Chave Global, preencha título, texto e link, escolha **Programar para** (e, se quiser, repetir todo dia/semana) e confirme com a senha. Dá para criar quantas quiser; a lista "Programadas" permite cancelar.
 
 Elas saem sozinhas assim que alguém abre o site depois do horário (checagem a cada ~20 s). Para sair **no minuto exato** mesmo sem ninguém online, crie um cron que chame a cada minuto:
 
@@ -98,14 +98,14 @@ Android/Chrome atualizam o ícone dos apps já instalados sozinhos em poucos dia
 - Página pública: **`/team/contratoingressamento`** (`public/team/contratoingressamento.html` + `public/js/team-contrato.js`). Funciona com o site fechado e em manutenção.
 - A pessoa informa nome (obrigatório), @ no Bloxter/Discord e função (opcionais), lê o termo (sem remuneração, início hoje, sigilo sobre conversas, brigas e retiradas da equipe), assina com o dedo ou o mouse e marca que concorda.
 - No navegador é gerada **uma imagem PNG do contrato completo** (texto + nome + data/hora + assinatura) e enviada por `POST /api/team/contract`. A pessoa também pode baixar a própria cópia.
-- Em **/administracao → Contratos** a administração vê a lista, abre a imagem, baixa e exclui (`GET /api/admin/contracts`, `GET /api/admin/contracts/:id/image`, `DELETE /api/admin/contracts/:id`).
+- Em **/admin → Contratos** a administração vê a lista, abre a imagem, baixa e exclui (`GET /api/admin/contracts`, `GET /api/admin/contracts/:id/image`, `DELETE /api/admin/contracts/:id`).
 - Tabela `team_contracts` criada sozinha no primeiro acesso (também em `schema.sql`). Guardamos nome, @, função, imagem, data/hora, user-agent e um **hash** do IP (nunca o IP puro).
 - Proteções: só aceita PNG real de até ~2,2 MB, limite de 5 envios por hora por IP.
 - Para mudar o texto do termo, edite `TITLE`, `INTRO` e `CLAUSES` no topo de `public/js/team-contrato.js`; a tela e a imagem usam o mesmo texto.
 
 ## Top 10 do dia com IA (Groq) + leitura em voz alta
 
-- Em **/administracao → Top 10 IA**, clique em **Analisar posts do dia**. O servidor pega os 30 posts de hoje (fuso de São Paulo; se houver menos de 10, olha as últimas 24 h) com mais curtidas, comentários e republicações e pede para a IA da Groq escolher os 10 melhores, com um motivo curto para cada.
+- Em **/admin → Top 10 IA**, clique em **Analisar posts do dia**. O servidor pega os 30 posts de hoje (fuso de São Paulo; se houver menos de 10, olha as últimas 24 h) com mais curtidas, comentários e republicações e pede para a IA da Groq escolher os 10 melhores, com um motivo curto para cada.
 - O resultado fica salvo (`site_settings.ai_top_posts`) e a aba mostra a análise de hoje sem gastar a API de novo. "Analisar de novo" refaz.
 - Clique num post (ou em **▶ Ouvir**) para ele ser lido em voz alta; **▶ Ouvir todos** lê em sequência, e dá para escolher a velocidade. A voz é a do navegador (pt-BR), então é de graça e funciona sem a API.
 - Se a Groq falhar, a lista sai ordenada só por engajamento e a aba avisa.
@@ -122,7 +122,7 @@ Android/Chrome atualizam o ícone dos apps já instalados sozinhos em poucos dia
 
 ## BannerUP (banner no perfil)
 
-- Ligado por conta em **/administracao → lista de contas → caixa “BannerUP”** (igual ao PageUP). Vem desligado.
+- Ligado por conta em **/admin → lista de contas → caixa “BannerUP”** (igual ao PageUP). Vem desligado.
 - Contas com BannerUP veem **Configurações → Perfil → Banner do perfil**: escolhem uma imagem (recortada em 3:1, 1200×400) e salvam. Também podem remover.
 - O banner aparece no topo do perfil (`/account/usuario`). Se a administração desligar o BannerUP, o banner some (a imagem fica guardada e volta se for religado).
 - API: `PATCH /api/me` aceita `banner` (data URL; 403 `bannerup_required` sem a função) ou `null` para remover; `GET /api/banner/:id` serve a imagem; `PATCH /api/admin/users/:u` aceita `bannerup: boolean`. Colunas criadas sozinhas: `users.bannerup`, `banner`, `banner_v`.

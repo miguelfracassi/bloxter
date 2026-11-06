@@ -71,7 +71,7 @@
     await loadStories();
   }
 
-  // Popup criado em /administracao (imagem, texto, link e duração). Some sozinho quando a duração acaba.
+  // Popup criado em /admin (imagem, texto, link e duração). Some sozinho quando a duração acaba.
   async function loadSitePopup(view) {
     let popup = null;
     try { popup = (await api('popup')).popup; } catch { return; }
