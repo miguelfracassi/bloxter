@@ -12,7 +12,7 @@
     if (!response.ok) { const error = new Error(data.error || 'request_failed'); error.status = response.status; throw error; }
     return data;
   };
-  const brand = `<header class="top"><a class="brand" href="/home"><img src="/symbol.png" alt=""><span>Bloxter · Criar notícia</span></a><div class="top-actions"><a class="plain" href="/administracao">Administração</a><a class="plain" href="/home">Voltar ao site</a></div></header>`;
+  const brand = `<header class="top"><a class="brand" href="/home"><img src="/symbol.png" alt=""><span>Bloxter · Criar notícia</span></a><div class="top-actions"><a class="plain" href="/admin">Administração</a><a class="plain" href="/home">Voltar ao site</a></div></header>`;
   const toast = (message) => { toastNode.textContent = message; toastNode.classList.add('show'); clearTimeout(toast.timer); toast.timer = setTimeout(() => toastNode.classList.remove('show'), 2400); };
 
   function login(error = '') {
