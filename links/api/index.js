@@ -1649,7 +1649,8 @@ module.exports = async (req, res) => {
       }
 
       // ---------- Posts fixados ----------
-      if (b === 'posts' && !c && method === 'GET') {
+      // (lista do painel em admin/pins: admin/posts já é usado pela API de chaves de administração)
+      if (b === 'pins' && !c && method === 'GET') {
         const term = str(q.get('q'), 50).replace(/^@/, '');
         const like = `%${term.replace(/[\\%_]/g, (m) => `\\${m}`)}%`;
         const rows = await sql`
@@ -1658,7 +1659,8 @@ module.exports = async (req, res) => {
           FROM posts p JOIN users u ON u.id = p.user_id
           WHERE ${term} = '' OR p.body ILIKE ${like} OR u.username ILIKE ${like} OR u.name ILIKE ${like}
           ORDER BY pinned DESC, p.id DESC LIMIT 40`;
-        return send({ posts: rows.map((r) => ({ id: r.id, body: r.body, created_at: r.created_at, pinned: !!r.pinned,
+        const [pc] = await sql`SELECT count(*)::int AS n FROM pinned_posts`;
+        return send({ pinned_total: pc.n, posts: rows.map((r) => ({ id: r.id, body: r.body, created_at: r.created_at, pinned: !!r.pinned,
           user: { id: r.uid, username: r.username, name: r.name, avatar: avatarUrl(r.uid, r.avatar_v), ...flags(r) } })) });
       }
       if (b === 'pins' && c && method === 'POST') {
@@ -1671,6 +1673,11 @@ module.exports = async (req, res) => {
         if (!already && Number(active.count) >= 5) throw new HttpError(409, 'pin_limit');
         await sql`INSERT INTO pinned_posts (post_id) VALUES (${id}) ON CONFLICT (post_id) DO NOTHING`;
         return send({ ok: true, pinned: true });
+      }
+      // Retira TODOS os posts fixados de uma vez.
+      if (b === 'pins' && !c && method === 'DELETE') {
+        const gone = await sql`DELETE FROM pinned_posts RETURNING post_id`;
+        return send({ ok: true, removed: gone.length });
       }
       if (b === 'pins' && c && method === 'DELETE') {
         const id = Number.parseInt(c, 10);

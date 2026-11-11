@@ -270,21 +270,39 @@
       box.innerHTML = `
         <h2 style="font-size:17px;margin:0 0 4px">Posts fixados</h2>
         <p class="sub" style="margin:0 0 12px">Posts fixados aparecem no topo do feed de todo mundo, sempre que entram no site. Máximo de 5 ao mesmo tempo.</p>
+        <div class="row" style="align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:10px"><span id="pcount" class="sub" style="margin:0"></span><button class="btn sm ghost" type="button" id="pclear" hidden>Retirar todos os fixados</button></div>
         <input type="search" id="pq" placeholder="Buscar por texto, @ ou nome (vazio = fixados e mais recentes)" autocomplete="off" />
         <div id="plist"></div>`;
+      const clearBtn = box.querySelector('#pclear');
+      const countEl = box.querySelector('#pcount');
       const list = box.querySelector('#plist');
       const input = box.querySelector('#pq');
       const load = async () => {
         const my = ++seq;
         try {
-          const { posts } = await api(`admin/posts?q=${encodeURIComponent(input.value.trim())}`);
+          const { posts, pinned_total: total } = await api(`admin/pins?q=${encodeURIComponent(input.value.trim())}`);
           if (my !== seq) return;
+          countEl.textContent = total ? `${total} ${total === 1 ? 'post fixado' : 'posts fixados'} agora` : 'Nenhum post fixado agora.';
+          clearBtn.hidden = !total;
           list.innerHTML = posts.length ? posts.map(card).join('') : '<div class="empty">Nenhum post encontrado.</div>';
         } catch (e) {
           if (e.status === 401) return loginView();
           list.innerHTML = '<div class="empty">Erro ao carregar.</div>';
         }
       };
+      clearBtn.addEventListener('click', async () => {
+        if (!window.confirm('Retirar TODOS os posts fixados do topo do feed?')) return;
+        clearBtn.disabled = true;
+        try {
+          const r = await api('admin/pins', 'DELETE');
+          toast(r.removed ? `${r.removed} ${r.removed === 1 ? 'post desafixado' : 'posts desafixados'}.` : 'Não havia posts fixados.');
+          await load();
+        } catch (x) {
+          if (x.status === 401) return loginView();
+          toast('Não foi possível retirar agora.');
+        }
+        clearBtn.disabled = false;
+      });
       input.addEventListener('input', () => { clearTimeout(searchTimer); searchTimer = setTimeout(load, 300); });
       list.addEventListener('click', async (e) => {
         const btn = e.target.closest('[data-pin]');
