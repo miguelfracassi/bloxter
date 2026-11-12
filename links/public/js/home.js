@@ -47,10 +47,15 @@
             </div>
             <small class="collab-hint">Escreva a pergunta no campo acima. Cada pessoa vota uma vez.</small>
           </div>
+          <div class="composer-sched" id="composer-sched" hidden>
+            <label class="sched-row">Publicar em <input type="datetime-local" id="sched-at" /></label>
+            <small class="collab-hint">Posts agendados aceitam só texto. Eles saem sozinhos na hora marcada (até 30 dias à frente).</small>
+            <div id="sched-list"></div>
+          </div>
           <div class="composer-qnote" id="composer-qnote" hidden>Escreva a sua pergunta acima. As pessoas respondem e você vê tudo em “Respostas”.</div>
           <div class="row">
             <label class="icon-btn composer-photo" title="Adicionar fotos ou vídeo" aria-label="Adicionar fotos ou vídeo">${BX.ICON.image}<input type="file" id="composer-files" accept="image/png,image/jpeg,image/webp,video/mp4,video/webm,video/quicktime" multiple hidden /></label>
-            <button type="button" class="icon-btn composer-music-btn" data-act="musictoggle" title="Adicionar música" aria-label="Adicionar música"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg></button><button type="button" class="icon-btn composer-collab-btn" data-act="collabtoggle" title="Convidar colaboradores" aria-label="Convidar colaboradores">${BX.ICON.people}<span class="collab-count" id="collab-count" hidden></span></button>${state.me.perks && state.me.perks.polls ? `<button type="button" class="icon-btn composer-mode-btn" data-act="polltoggle" title="Criar enquete" aria-label="Criar enquete" aria-pressed="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20V10"/><path d="M10 20V4"/><path d="M16 20v-7"/><path d="M22 20H2"/></svg></button>` : ''}${state.me.perks && state.me.perks.questions ? `<button type="button" class="icon-btn composer-mode-btn" data-act="questiontoggle" title="Fazer uma pergunta" aria-label="Fazer uma pergunta" aria-pressed="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.7.4-1 .9-1 1.7"/><path d="M12 17h.01"/></svg></button>` : ''}<span class="counter">500</span><button class="btn sm" type="submit">${t('post')}</button>
+            <button type="button" class="icon-btn composer-music-btn" data-act="musictoggle" title="Adicionar música" aria-label="Adicionar música"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg></button><button type="button" class="icon-btn composer-collab-btn" data-act="collabtoggle" title="Convidar colaboradores" aria-label="Convidar colaboradores">${BX.ICON.people}<span class="collab-count" id="collab-count" hidden></span></button>${state.me.perks && state.me.perks.polls ? `<button type="button" class="icon-btn composer-mode-btn" data-act="polltoggle" title="Criar enquete" aria-label="Criar enquete" aria-pressed="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20V10"/><path d="M10 20V4"/><path d="M16 20v-7"/><path d="M22 20H2"/></svg></button>` : ''}${state.me.perks && state.me.perks.questions ? `<button type="button" class="icon-btn composer-mode-btn" data-act="questiontoggle" title="Fazer uma pergunta" aria-label="Fazer uma pergunta" aria-pressed="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.7.4-1 .9-1 1.7"/><path d="M12 17h.01"/></svg></button>` : ''}<button type="button" class="icon-btn composer-mode-btn" data-act="schedtoggle" title="Agendar post" aria-label="Agendar post" aria-pressed="false">${BX.ICON.clock}</button><span class="counter">500</span><button class="btn sm" type="submit">${t('post')}</button>
           </div>
         </div>
       </form>
@@ -607,7 +612,46 @@
     if (box) box.innerHTML = '<input type="text" class="composer-music" data-poll-opt maxlength="60" placeholder="Opção 1" autocomplete="off" /><input type="text" class="composer-music" data-poll-opt maxlength="60" placeholder="Opção 2" autocomplete="off" />';
   }
 
+  let schedOn = false;
+  const fmtWhen = (iso) => new Date(iso).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+  async function loadScheduled() {
+    const box = $('#sched-list'); if (!box) return;
+    try {
+      const { scheduled } = await api('scheduled');
+      box.innerHTML = scheduled.length ? `<div class="sched-title">Agendados</div>${scheduled.map((x) => `<div class="sched-item"><span>${esc(fmtWhen(x.publish_at))}</span><p>${esc(x.body)}</p><button type="button" class="qa-del" data-act="schedcancel" data-id="${x.id}" aria-label="Cancelar agendamento">✕</button></div>`).join('')}` : '';
+    } catch { /* sem lista */ }
+  }
+  BX.actions.schedtoggle = (el) => {
+    schedOn = !schedOn;
+    const panel = $('#composer-sched'); if (panel) panel.hidden = !schedOn;
+    document.querySelectorAll('[data-act="schedtoggle"]').forEach((b) => { b.classList.toggle('on', schedOn); b.setAttribute('aria-pressed', String(schedOn)); });
+    if (schedOn) {
+      const at = $('#sched-at');
+      if (at && !at.value) { const d = new Date(Date.now() + 3600e3); d.setMinutes(0, 0, 0); at.value = new Date(d - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16); }
+      loadScheduled();
+    }
+  };
+  BX.actions.schedcancel = async (el) => {
+    try { await api(`scheduled/${el.dataset.id}`, { method: 'DELETE' }); toast('Agendamento cancelado.'); loadScheduled(); } catch (e) { toast(errMsg(e)); }
+  };
+
   forms.post = async (form) => {
+    if (schedOn) {
+      const textarea = form.body; const body = textarea.value.trim();
+      if (!body) return toast(t('err.post_empty'));
+      if (composerImages.length || composerVideo || ($('#composer-music') || {}).value || composerMode) return toast('Posts agendados aceitam só texto. Desative o agendamento para enviar imagem, enquete ou música.');
+      const at = $('#sched-at').value;
+      if (!at) return toast('Escolha o dia e a hora.');
+      const button = $('button[type=submit]', form); button.disabled = true;
+      try {
+        const r = await api('posts/schedule', { method: 'POST', body: { body, publish_at: new Date(at).toISOString() } });
+        toast(`Post agendado para ${fmtWhen(r.scheduled.publish_at)}.`);
+        textarea.value = ''; $('.counter', form).textContent = '500';
+        loadScheduled();
+      } catch (e) { toast(errMsg(e)); }
+      button.disabled = false;
+      return;
+    }
     const textarea = form.body;
     const body = textarea.value.trim();
     const musicInput = $('#composer-music');

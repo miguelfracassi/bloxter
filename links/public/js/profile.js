@@ -34,6 +34,7 @@
         </div>
         <h2>${esc(user.name)}${BX.badges(user)}</h2>
         <div class="handle">@${esc(user.username)}</div>
+        ${BX.statusHTML(user)}
         ${user.bio ? `<div class="bio">${fmt(user.bio)}</div>` : ''}
         <div class="meta">
           ${user.link ? `<span>🔗 <a href="${esc(user.link)}" target="_blank" rel="noopener noreferrer nofollow">${esc(linkHost)}</a></span>` : ''}

@@ -76,6 +76,10 @@
       'nav.menu': 'Menu',
       'nav.conversations': 'Conversas',
       'nav.invite': 'Convidar e Ganhar',
+      'nav.saved': 'Salvos',
+      'err.date_in_past': 'Escolha um horário daqui a pelo menos 1 minuto.',
+      'err.date_too_far': 'Agende para até 30 dias à frente.',
+      'err.too_many_scheduled': 'Você já tem 10 posts agendados. Cancele algum primeiro.',
       'invite.title': 'Convidar e Ganhar',
       'invite.sub': 'Chame seus amigos e ganhem seguidores juntos.',
       'invite.hero1': 'Ganhe seguidores',
@@ -361,6 +365,10 @@
       'nav.menu': 'Menu',
       'nav.conversations': 'Conversations',
       'nav.invite': 'Invite & Earn',
+      'nav.saved': 'Saved',
+      'err.date_in_past': 'Pick a time at least 1 minute from now.',
+      'err.date_too_far': 'Schedule up to 30 days ahead.',
+      'err.too_many_scheduled': 'You already have 10 scheduled posts. Cancel one first.',
       'invite.title': 'Invite & Earn',
       'invite.sub': 'Invite your friends and earn followers together.',
       'invite.hero1': 'Get followers',
@@ -1107,6 +1115,8 @@
 
   const ICON = {
     chevDown: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>',
+    bookmark: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 3h12a1 1 0 0 1 1 1v17l-7-4-7 4V4a1 1 0 0 1 1-1z"/></svg>',
+    clock: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>',
     gift: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="8" width="18" height="4" rx="1"/><path d="M12 8v13M5 12v8a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-8"/><path d="M7.5 8a2.5 2.5 0 0 1 0-5C10 3 12 8 12 8s2-5 4.5-5a2.5 2.5 0 0 1 0 5"/></svg>',
     people: '<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><circle cx=\"9\" cy=\"8\" r=\"3\"/><path d=\"M3 19v-1a6 6 0 0 1 12 0v1M16 5.5a3 3 0 0 1 0 5.8M18 14a5 5 0 0 1 3 4v1\"/></svg>',
     home: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11l9-8 9 8"/><path d="M5 10v10h5v-6h4v6h5V10"/></svg>',
@@ -1330,6 +1340,7 @@
             <a href="/search" data-nav="search">${ICON.search}<span class="lbl" data-t="nav.search"></span></a>
             <a href="/notifications" data-nav="notifications">${ICON.bell}<span class="lbl" data-t="nav.notifications"></span><span class="badge" data-badge-notif></span></a>
             <a href="/messages" data-nav="messages">${ICON.msg}<span class="lbl" data-t="nav.messages"></span><span class="badge" data-badge></span></a>
+            <a href="/saved" data-nav="saved">${ICON.bookmark}<span class="lbl" data-t="nav.saved"></span></a>
             <a href="/invite" data-nav="invite">${ICON.gift}<span class="lbl" data-t="nav.invite"></span></a>
             <a href="${esc(mine)}" data-nav="profile">${ICON.user}<span class="lbl" data-t="nav.profile"></span></a>
             <a href="/settings" data-nav="settings">${ICON.cog}<span class="lbl" data-t="nav.settings"></span></a>
@@ -1366,6 +1377,7 @@
       <div class="menu-pop" id="menu-pop" hidden role="menu">
         <a href="/notifications" data-nav="notifications" role="menuitem">${ICON.bell}<span data-t="nav.notifications"></span><span class="badge" data-badge-notif></span></a>
         <a href="/messages" data-nav="messages" role="menuitem">${ICON.msg}<span data-t="nav.conversations"></span><span class="badge" data-badge></span></a>
+        <a href="/saved" data-nav="saved" role="menuitem">${ICON.bookmark}<span data-t="nav.saved"></span></a>
         <a href="/invite" data-nav="invite" role="menuitem">${ICON.gift}<span data-t="nav.invite"></span></a>
       </div>`;
     refreshShellText();
@@ -1481,7 +1493,7 @@
 
   function setActiveNav(name) {
     // No celular, "messages" e "notifications" ficam dentro do menu hambúrguer.
-    root.querySelectorAll('[data-nav]').forEach((a) => a.classList.toggle('active', a.dataset.nav === name || (a.dataset.nav === 'menu' && (name === 'messages' || name === 'notifications' || name === 'invite'))));
+    root.querySelectorAll('[data-nav]').forEach((a) => a.classList.toggle('active', a.dataset.nav === name || (a.dataset.nav === 'menu' && (name === 'messages' || name === 'notifications' || name === 'invite' || name === 'saved'))));
     root.querySelectorAll('.menu-pop a[data-nav]').forEach((a) => a.classList.toggle('active', a.dataset.nav === name));
   }
 
@@ -1772,6 +1784,12 @@
     applyMusicAudio(); syncMusicUI();
   });
 
+  // Status da conta (ponto colorido + texto curto).
+  const STATUS_LABELS = { online: 'Online', rp: 'Em RP', away: 'Ausente', dnd: 'Não perturbe' };
+  function statusHTML(u) {
+    if (!u || !u.status_kind || !STATUS_LABELS[u.status_kind]) return '';
+    return `<span class="ustatus s-${esc(u.status_kind)}"><i aria-hidden="true"></i><b>${STATUS_LABELS[u.status_kind]}</b>${u.status_text ? `<span>${esc(u.status_text)}</span>` : ''}</span>`;
+  }
   // Enquete e pergunta dentro do post.
   function pollLeft(iso) {
     const ms = new Date(iso) - Date.now();
@@ -1828,6 +1846,7 @@
             ? (p.reposts ? `<span class="act static" aria-label="${esc(t('repost.aria'))}">${ICON.repost}<span>${p.reposts}</span></span>` : '')
             : `<button class="act ${p.reposted ? 'reposted' : ''}" data-act="repost" data-id="${p.id}" aria-label="${esc(t('repost.aria'))}">${ICON.repost}<span>${p.reposts || ''}</span></button>`}
           ${state.features.likes ? `<button class="act ${p.liked ? 'liked' : ''}" data-act="like" data-id="${p.id}" aria-label="${esc(t('like'))}">${ICON.heart}<span>${p.likes || ''}</span></button>` : ''}
+          <button class="act ${p.saved ? 'saved' : ''}" data-act="save" data-id="${p.id}" aria-pressed="${p.saved ? 'true' : 'false'}" aria-label="Salvar post">${ICON.bookmark}</button>
           <button class="act" data-act="share" data-id="${p.id}" aria-label="${esc(t('share.aria'))}">${ICON.share}</button>
           ${p.mine ? `<button class="act" data-act="del" data-id="${p.id}" aria-label="${esc(t('delete'))}">${ICON.trash}</button>` : ''}
         </div>
@@ -2523,6 +2542,16 @@
         $('span', el).textContent = r.likes || '';
       } catch (e) { toast(errMsg(e)); }
     },
+    async save(el) {
+      const on = !el.classList.contains('saved');
+      try {
+        await api(`posts/${el.dataset.id}/save`, { method: on ? 'POST' : 'DELETE' });
+        el.classList.toggle('saved', on); el.setAttribute('aria-pressed', String(on));
+        const post = postCache.get(Number(el.dataset.id)); if (post) post.saved = on;
+        toast(on ? 'Post salvo.' : 'Removido dos salvos.');
+        if (document.body.dataset.page === 'saved' && !on) { const art = el.closest('.post'); if (art) art.remove(); }
+      } catch (e) { toast(errMsg(e)); }
+    },
     postmenu(el) { openPostMenu(el); },
     reportuser(el) { openReport({ type: 'user', id: el.dataset.user }); },
     comment(el) { openComments(Number(el.dataset.id)); },
@@ -2960,7 +2989,7 @@
   window.BX = {
     $, root, esc, debounce, store, state, t, errMsg, api, toast, ICON, avatar, ago, hhmm, fmt, PAGEUP_PAGES,
     accountPath, toggles, langToggle, playIntro, setTitle, go, safeNext, appShell, publicShell, refreshShellText,
-    setActiveNav, updateBadge, pollUnread, badges, followLabel, userRow, usernameChecker, postHTML, loadMoreBtn, feed,
+    setActiveNav, updateBadge, pollUnread, badges, followLabel, userRow, usernameChecker, postHTML, statusHTML, STATUS_LABELS, loadMoreBtn, feed,
     loadPosts, setFeed, forms, actions, openSheet, openReport, openPost, openImageViewer, imagesHTML, subscribePush, applyLang, applyTheme, openProfileDetails, openOnboarding, init,
     music: { seek: (bar, sec) => { if (bar === music.bar && music.player) { try { music.player.seekTo(sec, true); } catch { /* ignore */ } } }, html: musicHTML, prepare: () => loadYT().catch(() => null), ytId, ytStart, parseTime, fmtTime, stop: stopMusic, sync: syncMusicUI, autoButton: () => `<button type="button" class="btn ghost sm" data-act="musicauto" aria-pressed="${music.autoFollow}">${music.autoFollow ? 'Som automático ligado' : 'Som automático'}</button>`, setAuto: setAutoMusic },
   };

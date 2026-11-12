@@ -140,6 +140,18 @@ function sha256(value) {
   return crypto.createHash('sha256').update(String(value)).digest('hex');
 }
 
+// Posts agendados: publica os que já passaram do horário (chamado no feed, no máximo a cada 15 s por instância).
+let lastScheduledRun = 0;
+const STATUS_KINDS = ['', 'online', 'rp', 'away', 'dnd'];
+async function publishDue(sql) {
+  if (Date.now() - lastScheduledRun < 15000) return;
+  lastScheduledRun = Date.now();
+  const due = await sql`DELETE FROM scheduled_posts WHERE publish_at <= now() RETURNING user_id, body, publish_at`;
+  for (const d of due) {
+    await sql`INSERT INTO posts (user_id, body, created_at) SELECT ${d.user_id}, ${d.body}, ${d.publish_at} WHERE EXISTS (SELECT 1 FROM users WHERE id = ${d.user_id} AND banned_at IS NULL)`;
+  }
+}
+
 function meUser(r) {
   return {
     id: r.id,
@@ -147,6 +159,8 @@ function meUser(r) {
     username: r.username,
     name: r.name,
     bio: r.bio,
+    status_kind: r.status_kind || '',
+    status_text: r.status_text || '',
     link: r.link,
     avatar: avatarUrl(r.id, r.avatar_v),
     banner: bannerUrl(r.id, r.banner_v, r.bannerup),
@@ -835,7 +849,11 @@ module.exports = async (req, res) => {
         target.get(im.post_id).push(postMediaPath(im.id));
       }
       // Enquetes e perguntas: só consulta o resto quando há algum post desse tipo na lista.
-      const kindRows = await sql`SELECT id, kind, poll_ends_at FROM posts WHERE id = ANY(${ids}::int[]) AND kind <> 'post'`;
+      const [kindRows, savedRows] = await Promise.all([
+        sql`SELECT id, kind, poll_ends_at FROM posts WHERE id = ANY(${ids}::int[]) AND kind <> 'post'`,
+        me ? sql`SELECT post_id FROM saved_posts WHERE user_id = ${me} AND post_id = ANY(${ids}::int[])` : [],
+      ]);
+      const savedSet = new Set(savedRows.map((x) => x.post_id));
       const kindMap = new Map(kindRows.map((x) => [x.id, x]));
       const pollIds = kindRows.filter((x) => x.kind === 'poll').map((x) => x.id);
       const qIds = kindRows.filter((x) => x.kind === 'question').map((x) => x.id);
@@ -854,7 +872,7 @@ module.exports = async (req, res) => {
       const ansMap = new Map(ansRows.map((x) => [x.post_id, x.n]));
       const musmap = new Map(mus.map((x) => [x.id, { id: x.music, title: x.music_title, start: x.music_start || 0 }]));
       const fset = new Set(fol.map((x) => x.followee_id));
-      return rows.map((r) => ({ ...r, comments: cmap.get(r.id) || 0, reposts: rmap.get(r.id) || 0, reposted: mset.has(r.id), images: imap.get(r.id) || [], videos: vmap.get(r.id) || [], music: musmap.get(r.id) || null, following: fset.has(r.uid), collabs: collabMap.get(r.id) || [], kind: kindMap.has(r.id) ? kindMap.get(r.id).kind : 'post', poll: pollMap.get(r.id) || null, answers: ansMap.get(r.id) || 0 }));
+      return rows.map((r) => ({ ...r, comments: cmap.get(r.id) || 0, reposts: rmap.get(r.id) || 0, reposted: mset.has(r.id), images: imap.get(r.id) || [], videos: vmap.get(r.id) || [], music: musmap.get(r.id) || null, following: fset.has(r.uid), collabs: collabMap.get(r.id) || [], kind: kindMap.has(r.id) ? kindMap.get(r.id).kind : 'post', saved: savedSet.has(r.id), poll: pollMap.get(r.id) || null, answers: ansMap.get(r.id) || 0 }));
     };
 
     const mapPost = (r) => ({
@@ -873,6 +891,7 @@ module.exports = async (req, res) => {
       music: r.music || null,
       collaborators: r.collabs || [],
       kind: r.kind || 'post',
+      saved: !!r.saved,
       poll: r.poll || null,
       answers: r.answers || 0,
       mine: me != null && r.uid === me,
@@ -2326,6 +2345,8 @@ module.exports = async (req, res) => {
       let name = cur.name;
       let username = cur.username;
       let bio = cur.bio;
+      let statusKind = cur.status_kind || '';
+      let statusText = cur.status_text || '';
       let link = cur.link;
       let avatar = cur.avatar;
       let avatarV = cur.avatar_v;
@@ -2347,6 +2368,11 @@ module.exports = async (req, res) => {
         }
       }
       if (d.bio !== undefined) bio = str(d.bio, 160);
+      if (d.status_kind !== undefined) {
+        if (!STATUS_KINDS.includes(d.status_kind)) throw new HttpError(400, 'invalid_status');
+        statusKind = d.status_kind;
+        statusText = statusKind ? str(d.status_text, 40) : '';
+      }
       if (d.link !== undefined) link = normalizeLink(d.link);
       if (d.avatar === null) {
         avatar = null;
@@ -2377,7 +2403,7 @@ module.exports = async (req, res) => {
       try {
         [row] = await sql`
           UPDATE users
-          SET name = ${name}, username = ${username}, bio = ${bio}, link = ${link},
+          SET name = ${name}, username = ${username}, bio = ${bio}, status_kind = ${statusKind}, status_text = ${statusText}, link = ${link},
               avatar = ${avatar}, avatar_v = ${avatarV}, banner = ${banner}, banner_v = ${bannerV}, allow_direct_group_adds = ${allowDirectGroupAdds}
           WHERE id = ${me}
           RETURNING *`;
@@ -2456,6 +2482,7 @@ module.exports = async (req, res) => {
     // ---------- FEED ----------
     if (a === 'feed' && method === 'GET') {
       need();
+      await publishDue(sql).catch(() => {});
       const tab = q.get('tab') === 'following' ? 'following' : 'all';
       const before = parseInt(q.get('before'), 10) || null;
       const [pinnedRows, promotedRows] = await Promise.all([before == null ? sql`
@@ -2565,6 +2592,56 @@ module.exports = async (req, res) => {
           0 AS likes, false AS liked
         FROM posts p JOIN users u ON u.id = p.user_id WHERE p.id = ${row.id}`;
       return send({ post: mapPost((await decorate([r]))[0]) }, 201);
+    }
+
+    // ---------- POSTS AGENDADOS (só texto) ----------
+    if (a === 'posts' && b === 'schedule' && !c && method === 'POST') {
+      need();
+      const d0 = readBody(req);
+      const body = str(d0.body, 500);
+      if (!body) throw new HttpError(400, 'post_empty');
+      const when = new Date(d0.publish_at);
+      if (!(when instanceof Date) || Number.isNaN(when.getTime())) throw new HttpError(400, 'invalid_date');
+      if (when.getTime() < Date.now() + 60000) throw new HttpError(400, 'date_in_past');
+      if (when.getTime() > Date.now() + 30 * 86400000) throw new HttpError(400, 'date_too_far');
+      const [n] = await sql`SELECT count(*)::int AS n FROM scheduled_posts WHERE user_id = ${me}`;
+      if (n.n >= 10) throw new HttpError(409, 'too_many_scheduled');
+      const [row] = await sql`INSERT INTO scheduled_posts (user_id, body, publish_at) VALUES (${me}, ${body}, ${when.toISOString()}) RETURNING id, body, publish_at`;
+      return send({ scheduled: row }, 201);
+    }
+    if (a === 'scheduled' && !b && method === 'GET') {
+      need();
+      await publishDue(sql).catch(() => {});
+      res.setHeader('Cache-Control', 'no-store');
+      return send({ scheduled: await sql`SELECT id, body, publish_at FROM scheduled_posts WHERE user_id = ${me} ORDER BY publish_at` });
+    }
+    if (a === 'scheduled' && b && !c && method === 'DELETE') {
+      need();
+      await sql`DELETE FROM scheduled_posts WHERE id = ${parseInt(b, 10) || 0} AND user_id = ${me}`;
+      return send({ ok: true });
+    }
+
+    // ---------- POSTS SALVOS ----------
+    if (a === 'posts' && b && c === 'save' && !d && (method === 'POST' || method === 'DELETE')) {
+      need();
+      const post = await findPost(b);
+      if (method === 'POST') await sql`INSERT INTO saved_posts (user_id, post_id) VALUES (${me}, ${post.id}) ON CONFLICT (user_id, post_id) DO NOTHING`;
+      else await sql`DELETE FROM saved_posts WHERE user_id = ${me} AND post_id = ${post.id}`;
+      return send({ saved: method === 'POST' });
+    }
+    if (a === 'saved' && !b && method === 'GET') {
+      need();
+      const before = parseInt(q.get('before'), 10) || 2147483647;
+      const rows = await sql`
+        SELECT p.id, p.body, p.created_at, u.id AS uid, u.username, u.name, u.avatar_v, u.verified, u.is_ai, u.pageup,
+          (SELECT count(*) FROM likes l WHERE l.post_id = p.id)::int AS likes,
+          EXISTS (SELECT 1 FROM likes l WHERE l.post_id = p.id AND l.user_id = ${me}) AS liked,
+          s.id AS sid
+        FROM saved_posts s JOIN posts p ON p.id = s.post_id JOIN users u ON u.id = p.user_id
+        WHERE s.user_id = ${me} AND s.id < ${before} AND u.banned_at IS NULL
+        ORDER BY s.id DESC LIMIT 20`;
+      const dRows = await decorate(rows);
+      return send({ posts: dRows.map(mapPost), next_cursor: rows.length ? rows[rows.length - 1].sid : null, more: rows.length === 20 });
     }
 
     // ---------- ENQUETES ----------
@@ -2808,7 +2885,7 @@ module.exports = async (req, res) => {
     if (a === 'users' && b && !c && method === 'GET') {
       const uname = cleanUsername(b);
       const [r] = await sql`
-        SELECT u.id, u.username, u.name, u.bio, u.link, u.rp_category, u.instagram,
+        SELECT u.id, u.username, u.name, u.bio, u.status_kind, u.status_text, u.link, u.rp_category, u.instagram,
           u.roblox_username, u.roblox_user_id, u.roblox_avatar, u.avatar_v, u.banner_v, u.verified, u.is_ai, u.pageup, u.bannerup, u.created_at,
           ((SELECT count(*) FROM follows WHERE followee_id = u.id) + u.bonus_followers)::bigint AS followers,
           (SELECT count(*) FROM follows WHERE follower_id = u.id)::int AS following,
@@ -2824,6 +2901,8 @@ module.exports = async (req, res) => {
           username: r.username,
           name: r.name,
           bio: r.bio,
+          status_kind: r.status_kind || '',
+          status_text: r.status_text || '',
           link: r.link,
           rp_category: r.rp_category || '',
           instagram: r.instagram || '',

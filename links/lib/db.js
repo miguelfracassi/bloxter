@@ -404,6 +404,25 @@ async function createAll() {
     PRIMARY KEY (post_id, user_id)
   )`;
   await s`CREATE INDEX IF NOT EXISTS poll_votes_option_idx ON poll_votes (option_id)`;
+  // Posts salvos, status da conta e posts agendados.
+  await s`CREATE TABLE IF NOT EXISTS saved_posts (
+    id SERIAL PRIMARY KEY,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    post_id INTEGER NOT NULL REFERENCES posts(id) ON DELETE CASCADE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    UNIQUE (user_id, post_id)
+  )`;
+  await s`CREATE INDEX IF NOT EXISTS saved_posts_user_idx ON saved_posts (user_id, id DESC)`;
+  await s`ALTER TABLE users ADD COLUMN IF NOT EXISTS status_kind TEXT NOT NULL DEFAULT ''`;
+  await s`ALTER TABLE users ADD COLUMN IF NOT EXISTS status_text TEXT NOT NULL DEFAULT ''`;
+  await s`CREATE TABLE IF NOT EXISTS scheduled_posts (
+    id SERIAL PRIMARY KEY,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    body TEXT NOT NULL,
+    publish_at TIMESTAMPTZ NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+  )`;
+  await s`CREATE INDEX IF NOT EXISTS scheduled_posts_due_idx ON scheduled_posts (publish_at)`;
   // Permissões liberadas pelo administrador para contas específicas (ex.: 'polls', 'questions').
   await s`CREATE TABLE IF NOT EXISTS user_perks (
     user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,

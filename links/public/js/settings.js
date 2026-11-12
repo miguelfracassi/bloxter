@@ -43,6 +43,9 @@
             <div class="hint" id="s-hint">${t('user.hint')}</div></div>
           <div class="field"><label for="s-bio">${t('settings.bio')}</label>
             <textarea id="s-bio" name="bio" maxlength="160">${esc(me.bio)}</textarea></div>
+          <div class="field"><label for="s-status">Status</label>
+            <div class="status-edit"><select id="s-status" name="status_kind" aria-label="Status da conta"><option value="">Sem status</option>${Object.entries(BX.STATUS_LABELS).map(([k, v]) => `<option value="${k}" ${me.status_kind === k ? 'selected' : ''}>${v}</option>`).join('')}</select>
+            <input id="s-status-text" name="status_text" maxlength="40" placeholder="Texto curto (opcional)" value="${esc(me.status_text || '')}" /></div></div>
           <div class="field"><label for="s-link">${t('settings.link')}</label>
             <input id="s-link" name="link" maxlength="200" placeholder="${esc(t('settings.linkPh'))}" value="${esc(me.link)}" /></div>
           <button class="btn" type="submit">${t('settings.save')}</button>
@@ -254,7 +257,7 @@
       const btn = $('button[type=submit]', f);
       btn.disabled = true;
       try {
-        const body = { name: f.name.value, username: f.username.value, bio: f.bio.value, link: f.link.value };
+        const body = { name: f.name.value, username: f.username.value, bio: f.bio.value, link: f.link.value, status_kind: f.status_kind.value, status_text: f.status_text.value };
         if (f.dataset.avatar === 'remove') body.avatar = null;
         else if (f.dataset.avatar) body.avatar = f.dataset.avatar;
         if (f.dataset.banner === 'remove') body.banner = null;
