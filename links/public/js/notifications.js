@@ -18,8 +18,10 @@
     comment: (n) => `comentou “${esc(n.body)}” na sua publicação`,
     reply: (n) => `respondeu seu comentário: “${esc(n.body)}”`,
     comment_like: () => 'curtiu seu comentário',
+    answer: (n) => `respondeu sua pergunta: “${esc(n.body)}”`,
+    poll_vote: (n) => `votou na sua enquete: “${esc(n.body)}”`,
   };
-  const TYPE_ICON = { follow: ICON.userplus, follow_post: ICON.userplus, like: ICON.heart, repost: ICON.repost, comment: ICON.comment, reply: ICON.comment, comment_like: ICON.heart };
+  const TYPE_ICON = { follow: ICON.userplus, follow_post: ICON.userplus, like: ICON.heart, repost: ICON.repost, comment: ICON.comment, reply: ICON.comment, comment_like: ICON.heart, answer: ICON.comment, poll_vote: '<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20V10"/><path d="M10 20V4"/><path d="M16 20v-7"/><path d="M22 20H2"/></svg>' };
   TYPE_ICON.verification = '<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 12 4 4L19 6"/></svg>';
 
   const SETTINGS_ROWS = [

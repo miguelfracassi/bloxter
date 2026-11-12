@@ -1041,9 +1041,11 @@ module.exports = async (req, res) => {
       comment: (n, body) => `${n} comentou: “${body}”`,
       reply: (n, body) => `${n} respondeu seu comentário: “${body}”`,
       comment_like: (n) => `${n} curtiu seu comentário`,
+      answer: (n, body) => `${n} respondeu sua pergunta: “${body}”`,
+      poll_vote: (n, body) => `${n} votou na sua enquete: “${body}”`,
     };
     // Avisos novos seguem a preferência do tipo "parente" (resposta -> comentários, curtida de comentário -> curtidas).
-    const NOTIF_PREF_KEY = { reply: 'comment', comment_like: 'like' };
+    const NOTIF_PREF_KEY = { reply: 'comment', comment_like: 'like', answer: 'comment', poll_vote: 'like' };
     // Cria a notificação para "to" (nunca para si mesmo). Falhar aqui jamais pode quebrar a ação principal.
     const notify = async ({ to, type, postId = null, commentId = null, body = '' }) => {
       try {
@@ -2652,9 +2654,10 @@ module.exports = async (req, res) => {
       const [info] = await sql`SELECT kind, poll_ends_at FROM posts WHERE id = ${post.id}`;
       if (!info || info.kind !== 'poll') throw new HttpError(404, 'not_found');
       if (info.poll_ends_at && new Date(info.poll_ends_at) <= new Date()) throw new HttpError(409, 'poll_closed');
-      const [opt] = await sql`SELECT id FROM poll_options WHERE id = ${optionId} AND post_id = ${post.id}`;
+      const [opt] = await sql`SELECT id, text FROM poll_options WHERE id = ${optionId} AND post_id = ${post.id}`;
       if (!opt) throw new HttpError(400, 'invalid_option');
       await sql`INSERT INTO poll_votes (post_id, user_id, option_id) VALUES (${post.id}, ${me}, ${opt.id}) ON CONFLICT (post_id, user_id) DO NOTHING`;
+      await notify({ to: post.user_id, type: 'poll_vote', postId: post.id, body: opt.text });
       const [r] = await sql`SELECT p.id, p.body, p.created_at, u.id AS uid, u.username, u.name, u.avatar_v, u.verified, u.is_ai, u.pageup, 0 AS likes, false AS liked FROM posts p JOIN users u ON u.id = p.user_id WHERE p.id = ${post.id}`;
       return send({ poll: mapPost((await decorate([r]))[0]).poll });
     }
@@ -2677,6 +2680,7 @@ module.exports = async (req, res) => {
       if (!text) throw new HttpError(400, 'answer_empty');
       const ins = await sql`INSERT INTO post_answers (post_id, user_id, body) VALUES (${post.id}, ${me}, ${text}) ON CONFLICT (post_id, user_id) DO NOTHING RETURNING id`;
       if (!ins.length) throw new HttpError(409, 'already_answered');
+      await notify({ to: post.user_id, type: 'answer', postId: post.id, body: text });
       await recordVerificationDay(me, 'interaction');
       if (await verifiedBannerEnabled()) await maybeCompleteVerification(me);
       return send({ ok: true, id: ins[0].id }, 201);
@@ -3421,7 +3425,7 @@ module.exports = async (req, res) => {
           AND (${before}::int IS NULL OR n.id < ${before}::int)
           AND (${kind} = 'all'
                OR (${kind} = 'follows' AND n.type IN ('follow','follow_post'))
-               OR (${kind} = 'interactions' AND n.type IN ('like','repost','comment','reply','comment_like')))
+               OR (${kind} = 'interactions' AND n.type IN ('like','repost','comment','reply','comment_like','answer','poll_vote')))
         ORDER BY n.id DESC LIMIT ${PAGE}`;
       const [nn] = await sql`SELECT count(*)::int AS n FROM notifications WHERE user_id = ${me} AND read_at IS NULL`;
       const [prefsRow] = await sql`SELECT notif_prefs FROM users WHERE id = ${me}`;
