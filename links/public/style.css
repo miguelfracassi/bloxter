@@ -1922,3 +1922,16 @@ img { display: block; max-width: 100%; }
 .sched-item > span { color: var(--fg2); white-space: nowrap; }
 .sched-item p { flex: 1; margin: 0; overflow-wrap: anywhere; }
 .composer-poll[hidden], .composer-sched[hidden], .composer-qnote[hidden] { display: none; }
+
+/* ===== Voltar ao topo e atalhos ===== */
+.to-top { position: fixed; right: 18px; bottom: 24px; z-index: 40; width: 44px; height: 44px; border-radius: 50%; border: 1px solid var(--line); background: var(--card); color: var(--fg); display: grid; place-items: center; cursor: pointer; box-shadow: 0 6px 20px rgba(0,0,0,.35); transition: transform .15s ease, opacity .2s; }
+.to-top[hidden] { display: none; }
+.to-top:hover { transform: translateY(-2px); }
+.to-top svg { width: 22px; height: 22px; }
+@media (max-width: 720px) { .to-top { bottom: calc(86px + env(safe-area-inset-bottom)); right: 14px; } }
+.kbd-help { position: fixed; inset: 0; z-index: 200; display: grid; place-items: center; background: rgba(0,0,0,.55); padding: 20px; }
+.kbd-card { width: min(380px, 100%); background: var(--card); color: var(--fg); border: 1px solid var(--line); border-radius: 20px; padding: 20px; display: grid; gap: 10px; }
+.kbd-card h2 { font-size: 18px; margin: 0 0 4px; }
+.kbd-card > div { display: flex; align-items: center; justify-content: space-between; gap: 12px; font-size: 14px; }
+.kbd-card kbd { font: 600 12px/1 inherit; letter-spacing: .08em; padding: 5px 9px; border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 8px; background: var(--hover); white-space: pre; }
+.kbd-card .btn { justify-self: end; margin-top: 6px; }

@@ -647,6 +647,7 @@
         const r = await api('posts/schedule', { method: 'POST', body: { body, publish_at: new Date(at).toISOString() } });
         toast(`Post agendado para ${fmtWhen(r.scheduled.publish_at)}.`);
         textarea.value = ''; $('.counter', form).textContent = '500';
+        if (window.bxClearDraft) window.bxClearDraft();
         loadScheduled();
       } catch (e) { toast(errMsg(e)); }
       button.disabled = false;
@@ -674,6 +675,7 @@
       if (invited) toast(invited === 1 ? 'Convite enviado pela conversa.' : `${invited} convites enviados pela conversa.`);
       if (musicInput) { musicInput.value = ''; musicInput.hidden = true; clearMusicPreview(); }
       textarea.value = '';
+      if (window.bxClearDraft) window.bxClearDraft();
       resetComposerMode();
       composerImages = [];
       composerVideo = '';
@@ -689,4 +691,21 @@
   };
 
   homeView(v);
+
+  // Rascunho automático: o texto do post fica guardado neste aparelho até você publicar.
+  (function draft() {
+    const ta = document.querySelector('.composer textarea');
+    if (!ta || !state.me) return;
+    const key = `bx_draft_${state.me.id}`;
+    try {
+      const saved = localStorage.getItem(key);
+      if (saved && !ta.value) { ta.value = saved; ta.dispatchEvent(new Event('input', { bubbles: true })); toast('Rascunho restaurado.'); }
+    } catch { /* ignore */ }
+    let timer;
+    ta.addEventListener('input', () => {
+      clearTimeout(timer);
+      timer = setTimeout(() => { try { if (ta.value.trim()) localStorage.setItem(key, ta.value); else localStorage.removeItem(key); } catch { /* ignore */ } }, 400);
+    });
+    window.bxClearDraft = () => { clearTimeout(timer); try { localStorage.removeItem(key); } catch { /* ignore */ } };
+  })();
 })();

@@ -2890,6 +2890,53 @@
       </div></main>`;
   }
 
+  // Extras do app: botão "voltar ao topo" e atalhos de teclado (computador).
+  function installExtras() {
+    if (document.querySelector('.to-top')) return;
+    const up = document.createElement('button');
+    up.type = 'button'; up.className = 'to-top'; up.hidden = true; up.setAttribute('aria-label', 'Voltar ao topo');
+    up.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 15 6-6 6 6"/></svg>';
+    up.addEventListener('click', () => window.scrollTo({ top: 0, behavior: 'smooth' }));
+    document.body.appendChild(up);
+    let ticking = false;
+    window.addEventListener('scroll', () => {
+      if (ticking) return; ticking = true;
+      requestAnimationFrame(() => { up.hidden = window.scrollY < 900; ticking = false; });
+    }, { passive: true });
+
+    if (!window.matchMedia('(hover: hover) and (pointer: fine)').matches) return;
+    const GO = { h: '/home', s: '/saved', n: '/notifications', m: '/messages', i: '/invite', c: '/settings' };
+    let gAt = 0;
+    const typing = (el) => el && (el.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName));
+    const help = () => {
+      if (document.querySelector('.kbd-help')) return;
+      const m = document.createElement('div');
+      m.className = 'kbd-help'; m.setAttribute('role', 'dialog'); m.setAttribute('aria-label', 'Atalhos de teclado');
+      const row = (k, t2) => `<div><kbd>${k}</kbd><span>${t2}</span></div>`;
+      m.innerHTML = `<div class="kbd-card"><h2>Atalhos de teclado</h2>
+        ${row('N', 'Novo post')}${row('/', 'Buscar')}${row('G  H', 'Ir para o início')}${row('G  S', 'Ir para Salvos')}${row('G  N', 'Notificações')}${row('G  M', 'Mensagens')}${row('G  I', 'Convidar e Ganhar')}${row('G  C', 'Configurações')}${row('?', 'Mostrar esta ajuda')}
+        <button type="button" class="btn sm ghost" data-kbd-close>Fechar</button></div>`;
+      m.addEventListener('click', (e) => { if (e.target === m || e.target.closest('[data-kbd-close]')) m.remove(); });
+      document.body.appendChild(m);
+      m.querySelector('button').focus();
+    };
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') { const h = document.querySelector('.kbd-help'); if (h) h.remove(); return; }
+      if (e.ctrlKey || e.metaKey || e.altKey || typing(e.target) || document.querySelector('.kbd-help')) return;
+      const k = e.key.toLowerCase();
+      if (gAt && Date.now() - gAt < 1200 && GO[k]) { gAt = 0; e.preventDefault(); location.href = GO[k]; return; }
+      gAt = 0;
+      if (k === 'g') { gAt = Date.now(); return; }
+      if (k === '?') { e.preventDefault(); help(); return; }
+      if (k === '/') { e.preventDefault(); location.href = '/search'; return; }
+      if (k === 'n') {
+        const ta = document.querySelector('.composer textarea');
+        e.preventDefault();
+        if (ta) { ta.focus(); ta.scrollIntoView({ block: 'center', behavior: 'smooth' }); } else location.href = '/home';
+      }
+    });
+  }
+
   async function init({ auth = 'any', shell = 'public', active = '' } = {}) {
     const lg = store.get('bx_lang');
     applyLang(lg === 'en' || lg === 'pt' ? lg : (navigator.language || 'pt').toLowerCase().startsWith('pt') ? 'pt' : 'en', false);
@@ -2967,6 +3014,7 @@
       }
     } catch { /* ignore */ }
     if (shell === 'app') {
+      installExtras();
       appShell();
       setActiveNav(active);
       if (!adminPage) setTimeout(() => maybeShowLiquidGlassInvite(siteAccess), 1800);
