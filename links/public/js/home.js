@@ -692,6 +692,21 @@
 
   homeView(v);
 
+  // Ctrl/Cmd+Enter publica; a caixa cresce conforme você escreve.
+  (function composerExtras() {
+    const ta = document.querySelector('.composer textarea');
+    if (!ta) return;
+    const grow = () => { ta.style.height = 'auto'; ta.style.height = Math.min(ta.scrollHeight, 360) + 'px'; };
+    ta.addEventListener('input', grow);
+    ta.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+        e.preventDefault();
+        const f = ta.closest('form'); if (f) f.requestSubmit();
+      }
+    });
+    setTimeout(grow, 0);
+  })();
+
   // Rascunho automático: o texto do post fica guardado neste aparelho até você publicar.
   (function draft() {
     const ta = document.querySelector('.composer textarea');
